@@ -2,25 +2,19 @@ Ext.define('MedBlogs.store.Announcements',{
 	extend: 'Ext.data.Store',
 	config: {
 		model: 'MedBlogs.model.Announcements',
-		data: 
-		[
-			{
-				title : 'title 1', 
-				link: 'link 1',
-				date: 'date 1',
-				creator: 'author 1',
-				category: 'category 1',
-				description: 'description 1'
-			},
-			{
-				title : 'title 2', 
-				link: 'link 2',
-				date: 'date 2',
-				creator: 'author 2',
-				category: 'category 2',
-				description: 'description 2'
-			}
-		]
+        autoLoad: true,
+        //If we need additional sorting - example grouper / sorter
+        //sorters: 'firstName',
+        //grouper: {
+        //    groupFn: function(record) {
+        //       return record.get('lastName')[0];
+        //    }
+        //},
+        proxy: {
+            type: 'ajax',
+            url: 'feeds.json'
+        }
+		
 	}
 });
 

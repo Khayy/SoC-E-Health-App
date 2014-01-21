@@ -17,20 +17,31 @@ Ext.application({
         'Ext.ux.touch.SwipeTabs'
     ],
 
+    controllers: [
+        'FeedsNavigationController'
+    ],
+
     models: [
-    	'Announcements'
+    	'Announcements',
+        'Subscriptions',
+        'Tasks'
     ],
     
     stores: [
-    	'Announcements'
+    	'Announcements',
+        'Subscriptions',
+        'Tasks'
     ],
     
     views: [
         'Main',
-        'Feeds',
 		'FlashCards',
 		'PinnedPosts',
-		'Settings'
+        'Help',
+        'feeds.Feeds',
+        'feeds.FeedDetail',
+        'feeds.Settings',
+        'FeedsNavigation'
     ],
     
     icon: {

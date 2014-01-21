@@ -3,10 +3,13 @@ Ext.define('MedBlogs.view.Main', {
     xtype: 'main',
     
     requires: [
-    	'MedBlogs.view.Settings',
-    	'MedBlogs.view.Feeds',
+        'MedBlogs.view.FeedsNavigation',
+    	'MedBlogs.view.feeds.Settings',
+    	'MedBlogs.view.feeds.Feeds',
+        'MedBlogs.view.feeds.FeedDetail',
     	'MedBlogs.view.FlashCards',
     	'MedBlogs.view.PinnedPosts',
+        'MedBlogs.view.Help',
         'Ext.ux.touch.SwipeTabs'
     ],
     
@@ -18,16 +21,16 @@ Ext.define('MedBlogs.view.Main', {
 		
         items: [
             {
-            	xtype: 'settingsScreen'
-            },
-            {
-	            xtype: 'feedsScreen',
+                xtype: 'feedsNavigation'
             },
             {
 	            xtype: 'pinnedPostsScreen'
             },
             {
             	xtype: 'flashCardScreen'
+            },
+            {
+                xtype: 'helpScreen'
             }
         ]
     }

@@ -514,6 +514,17 @@ Ext.ClassManager.addNameAlternateMappings({
   "Ext.layout.wrapper.BoxDock": [],
   "Ext.layout.wrapper.Dock": [],
   "Ext.layout.wrapper.Inner": [],
+  "Ext.log.Base": [],
+  "Ext.log.Logger": [],
+  "Ext.log.filter.Filter": [],
+  "Ext.log.filter.Priority": [],
+  "Ext.log.formatter.Default": [],
+  "Ext.log.formatter.Formatter": [],
+  "Ext.log.formatter.Identity": [],
+  "Ext.log.writer.Console": [],
+  "Ext.log.writer.DocumentTitle": [],
+  "Ext.log.writer.Remote": [],
+  "Ext.log.writer.Writer": [],
   "Ext.mixin.Bindable": [],
   "Ext.mixin.Filterable": [],
   "Ext.mixin.Mixin": [],
@@ -611,6 +622,10 @@ Ext.ClassManager.addNameAlternateMappings({
   "Ext.util.translatable.CssTransform": [],
   "Ext.util.translatable.Dom": [],
   "Ext.util.translatable.ScrollPosition": [],
+  "Ext.ux.AccordionList": [
+    "Ext.AccordionList"
+  ],
+  "Ext.ux.AccordionListItem": [],
   "Ext.ux.ActionOverFlowMenuButton": [],
   "Ext.ux.ApplicationMenu": [],
   "Ext.ux.ContextMenu": [],
@@ -639,13 +654,23 @@ Ext.ClassManager.addNameAlternateMappings({
   "Ext.viewport.WindowsPhone": [
     "Ext.viewport.WP"
   ],
+  "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.model.Announcements": [],
+  "MedBlogs.model.HelpModel": [],
+  "MedBlogs.model.Subscriptions": [],
+  "MedBlogs.model.Tasks": [],
   "MedBlogs.store.Announcements": [],
-  "MedBlogs.view.Feeds": [],
+  "MedBlogs.store.HelpStore": [],
+  "MedBlogs.store.Subscriptions": [],
+  "MedBlogs.store.Tasks": [],
+  "MedBlogs.view.FeedsNavigation": [],
   "MedBlogs.view.FlashCards": [],
+  "MedBlogs.view.Help": [],
   "MedBlogs.view.Main": [],
   "MedBlogs.view.PinnedPosts": [],
-  "MedBlogs.view.Settings": []
+  "MedBlogs.view.feeds.FeedDetail": [],
+  "MedBlogs.view.feeds.Feeds": [],
+  "MedBlogs.view.feeds.Settings": []
 });
 Ext.ClassManager.addNameAliasMappings({
   "Ext.AbstractComponent": [],
@@ -1224,6 +1249,17 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.layout.wrapper.BoxDock": [],
   "Ext.layout.wrapper.Dock": [],
   "Ext.layout.wrapper.Inner": [],
+  "Ext.log.Base": [],
+  "Ext.log.Logger": [],
+  "Ext.log.filter.Filter": [],
+  "Ext.log.filter.Priority": [],
+  "Ext.log.formatter.Default": [],
+  "Ext.log.formatter.Formatter": [],
+  "Ext.log.formatter.Identity": [],
+  "Ext.log.writer.Console": [],
+  "Ext.log.writer.DocumentTitle": [],
+  "Ext.log.writer.Remote": [],
+  "Ext.log.writer.Writer": [],
   "Ext.mixin.Bindable": [],
   "Ext.mixin.Filterable": [],
   "Ext.mixin.Mixin": [],
@@ -1331,6 +1367,12 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.util.translatable.CssTransform": [],
   "Ext.util.translatable.Dom": [],
   "Ext.util.translatable.ScrollPosition": [],
+  "Ext.ux.AccordionList": [
+    "widget.accordionlist"
+  ],
+  "Ext.ux.AccordionListItem": [
+    "widget.accordionlistitem"
+  ],
   "Ext.ux.ActionOverFlowMenuButton": [],
   "Ext.ux.ApplicationMenu": [],
   "Ext.ux.ContextMenu": [],
@@ -1367,13 +1409,23 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.viewport.Ios": [],
   "Ext.viewport.Viewport": [],
   "Ext.viewport.WindowsPhone": [],
+  "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.model.Announcements": [],
+  "MedBlogs.model.HelpModel": [],
+  "MedBlogs.model.Subscriptions": [],
+  "MedBlogs.model.Tasks": [],
   "MedBlogs.store.Announcements": [],
-  "MedBlogs.view.Feeds": [
-    "widget.feedsScreen"
+  "MedBlogs.store.HelpStore": [],
+  "MedBlogs.store.Subscriptions": [],
+  "MedBlogs.store.Tasks": [],
+  "MedBlogs.view.FeedsNavigation": [
+    "widget.feedsNavigation"
   ],
   "MedBlogs.view.FlashCards": [
     "widget.flashCardScreen"
+  ],
+  "MedBlogs.view.Help": [
+    "widget.helpScreen"
   ],
   "MedBlogs.view.Main": [
     "widget.main"
@@ -1381,7 +1433,13 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.view.PinnedPosts": [
     "widget.pinnedPostsScreen"
   ],
-  "MedBlogs.view.Settings": [
+  "MedBlogs.view.feeds.FeedDetail": [
+    "widget.feedDetail"
+  ],
+  "MedBlogs.view.feeds.Feeds": [
+    "widget.feedsScreen"
+  ],
+  "MedBlogs.view.feeds.Settings": [
     "widget.settingsScreen"
   ]
 });
