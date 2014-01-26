@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>D2AF688C-CBB8-4CB6-A9E4-982B221B05D8</string>
+	<key>IDESourceControlProjectName</key>
+	<string>HelloCordova</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>9821EBB7-755A-4672-B610-EA6EA8836F9A</key>
+		<string>https://github.com/apoclyps/SoC-E-Health-App.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>medblogs/platforms/ios/HelloCordova.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>9821EBB7-755A-4672-B610-EA6EA8836F9A</key>
+		<string>../../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/apoclyps/SoC-E-Health-App.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>9821EBB7-755A-4672-B610-EA6EA8836F9A</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>9821EBB7-755A-4672-B610-EA6EA8836F9A</string>
+			<key>IDESourceControlWCCName</key>
+			<string>SoC-E-Health-App</string>
+		</dict>
+	</array>
+</dict>
+</plist>
