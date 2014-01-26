@@ -1,0 +1,1 @@
+{"prepare_queue":{"installed":[],"uninstalled":[]},"config_munge":{"config.xml":{"/*":{"<feature name=\"PushPlugin\"><param name=\"ios-package\" value=\"PushPlugin\" /></feature>":2}}},"installed_plugins":{"com.phonegap.plugins.PushPlugin":{"PACKAGE_NAME":"com.soc-e-health-app.medblogs"}},"dependent_plugins":{}}
