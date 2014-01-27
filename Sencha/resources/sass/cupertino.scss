@@ -17,11 +17,12 @@ $secondary-text-color: #000 !default;
 	}
 }
 
-@include icon('user');
-
 @include icon('cardIcon', '|');
+@include icon('bellIcon', ':');
+@include icon('favIcon', 'S');
 @include icon('alertIcon', '!');
 @include icon('listIcon', 'l');
+@include icon('tagIcon', 'z');
 @include icon('helpIcon', '?');
 
 @import 'stylesheets/accordionlist';

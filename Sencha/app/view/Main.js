@@ -18,7 +18,10 @@ Ext.define('MedBlogs.view.Main', {
         tabBarPosition: 'bottom',
 
 		fullscreen: true, 
-		
+		defaults: {
+            scroll: 'vertical'
+        },
+        
         items: [
             {
                 xtype: 'feedsNavigation'

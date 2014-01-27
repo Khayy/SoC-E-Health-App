@@ -5,13 +5,13 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 	requires: [
 		'Ext.TitleBar',
 		'Ext.dataview.List',
-		'MedBlogs.store.Tasks',
-		'MedBlogs.model.Tasks'
+		'MedBlogs.store.PinnedPosts',
+		'MedBlogs.model.PinnedPosts'
 	],
 	
 	config: {
 		title: 'Pinned Posts',
-		iconCls: 'listIcon',
+		iconCls: 'favIcon',
 		layout: 'card',
 		
 		items: [
@@ -23,7 +23,7 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 			{
 				xtype: 'list',
 				variableHeights: true,
-				store: 'Tasks',
+				store: 'PinnedPosts',
 				itemTpl: ['<div class="feed_list">',
 							'<div class="category">{category}</div>',
 							'<span class="title">{title}</span><br/>',

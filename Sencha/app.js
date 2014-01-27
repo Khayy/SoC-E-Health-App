@@ -24,13 +24,17 @@ Ext.application({
     models: [
     	'Announcements',
         'Subscriptions',
-        'Tasks'
+        'PinnedPosts',
+        'CardCategories',
+        'FlashCards'
     ],
     
     stores: [
     	'Announcements',
         'Subscriptions',
-        'Tasks'
+        'PinnedPosts',
+        'CardCategories',
+        'FlashCards'
     ],
     
     views: [
@@ -63,6 +67,9 @@ Ext.application({
     },
 
     launch: function() {
+        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        MedBlogs.util.Proxy.process('feed.js');
+
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 

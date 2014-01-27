@@ -85,7 +85,10 @@
          * List of items in the CACHE MANIFEST section
          */
         "cache": [
-            "index.html"
+            "index.html",
+            "feeds.json",
+            "helpData.json",
+            "feed.js"
         ],
         /**
          * List of items in the NETWORK section
@@ -125,6 +128,18 @@
      * List of package names to require for the cmd build process
      */
     "requires": [
+    ],
+
+    /**
+     * Extra resources to be copied along when build
+     */
+    "extras": [
+        "feeds.json",
+        "helpData.json",
+        "feed.js",
+        "resources/images",
+        "resources/icons",
+        "resources/loading"
     ],
 
     /**

@@ -59,8 +59,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onSettingTap: function(list, index, node, record) {
         // check and only show on select 
-        //CHECK NEEDED
-        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
+        if(list.isSelected(record) === false)
+            Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
     },
 
     onFeedTap: function(list, index, node, record) {

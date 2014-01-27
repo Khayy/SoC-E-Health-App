@@ -57,35 +57,37 @@ Ext.define('Ext.ux.touch.SwipeTabs', {
     },
 
     onSwipe : function(e) {
-        var cmp           = this.getCmp(),
-            allowOverflow = this.getAllowOverflow(),
-            animation     = this.getAnimation(),
-            direction     = e.direction,
-            activeItem    = cmp.getActiveItem(),
-            innerItems    = cmp.getInnerItems(),
-            numIdx        = innerItems.length - 1,
-            idx           = Ext.Array.indexOf(innerItems, activeItem),
-            newIdx        = idx + (direction === 'left' ? 1 : -1),
-            newItem;
+        if(e.direction === 'left' || e.direction === 'right') {
+            var cmp           = this.getCmp(),
+                allowOverflow = this.getAllowOverflow(),
+                animation     = this.getAnimation(),
+                direction     = e.direction,
+                activeItem    = cmp.getActiveItem(),
+                innerItems    = cmp.getInnerItems(),
+                numIdx        = innerItems.length - 1,
+                idx           = Ext.Array.indexOf(innerItems, activeItem),
+                newIdx        = idx + (direction === 'left' ? 1 : -1),
+                newItem;
 
-        if (newIdx < 0) {
-            if (allowOverflow) {
-                newItem = innerItems[numIdx];
+            if (newIdx < 0) {
+                if (allowOverflow) {
+                    newItem = innerItems[numIdx];
+                }
+            } else if (newIdx > numIdx) {
+                if (allowOverflow) {
+                    newItem = innerItems[0];
+                }
+            } else {
+                newItem = innerItems[newIdx]
             }
-        } else if (newIdx > numIdx) {
-            if (allowOverflow) {
-                newItem = innerItems[0];
+
+            if (newItem) {
+                animation = Ext.apply({}, {
+                    direction : direction
+                }, animation);
+
+                cmp.animateActiveItem(newItem, animation);
             }
-        } else {
-            newItem = innerItems[newIdx]
-        }
-
-        if (newItem) {
-            animation = Ext.apply({}, {
-                direction : direction
-            }, animation);
-
-            cmp.animateActiveItem(newItem, animation);
         }
     }
 

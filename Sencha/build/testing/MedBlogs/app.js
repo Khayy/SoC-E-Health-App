@@ -55732,6 +55732,303 @@ Ext.define('Ext.data.ArrayStore', {
 });
 
 /**
+ * @aside guide ajax
+ * @singleton
+ *
+ * This class is used to create JsonP requests. JsonP is a mechanism that allows for making requests for data cross
+ * domain. More information is available [here](http://en.wikipedia.org/wiki/JSONP).
+ *
+ * ## Example
+ *
+ *     @example preview
+ *     Ext.Viewport.add({
+ *         xtype: 'button',
+ *         text: 'Make JsonP Request',
+ *         centered: true,
+ *         handler: function(button) {
+ *             // Mask the viewport
+ *             Ext.Viewport.mask();
+ *
+ *             // Remove the button
+ *             button.destroy();
+ *
+ *             // Make the JsonP request
+ *             Ext.data.JsonP.request({
+ *                 url: 'http://free.worldweatheronline.com/feed/weather.ashx',
+ *                 callbackKey: 'callback',
+ *                 params: {
+ *                     key: '23f6a0ab24185952101705',
+ *                     q: '94301', // Palo Alto
+ *                     format: 'json',
+ *                     num_of_days: 5
+ *                 },
+ *                 success: function(result, request) {
+ *                     // Unmask the viewport
+ *                     Ext.Viewport.unmask();
+ *
+ *                     // Get the weather data from the json object result
+ *                     var weather = result.data.weather;
+ *                     if (weather) {
+ *                         // Style the viewport html, and set the html of the max temperature
+ *                         Ext.Viewport.setStyleHtmlContent(true);
+ *                         Ext.Viewport.setHtml('The temperature in Palo Alto is <b>' + weather[0].tempMaxF + '° F</b>');
+ *                     }
+ *                 }
+ *             });
+ *         }
+ *     });
+ *
+ * See the {@link #request} method for more details on making a JsonP request.
+ */
+Ext.define('Ext.data.JsonP', {
+    alternateClassName: 'Ext.util.JSONP',
+
+    /* Begin Definitions */
+
+    singleton: true,
+
+
+    /* End Definitions */
+
+    /**
+     * Number of requests done so far.
+     * @private
+     */
+    requestCount: 0,
+
+    /**
+     * Hash of pending requests.
+     * @private
+     */
+    requests: {},
+
+    /**
+     * @property {Number} [timeout=30000]
+     * A default timeout (in milliseconds) for any JsonP requests. If the request has not completed in this time the failure callback will
+     * be fired.
+     */
+    timeout: 30000,
+
+    /**
+     * @property {Boolean} disableCaching
+     * `true` to add a unique cache-buster param to requests.
+     */
+    disableCaching: true,
+
+    /**
+     * @property {String} disableCachingParam
+     * Change the parameter which is sent went disabling caching through a cache buster.
+     */
+    disableCachingParam: '_dc',
+
+    /**
+     * @property {String} callbackKey
+     * Specifies the GET parameter that will be sent to the server containing the function name to be executed when the
+     * request completes. Thus, a common request will be in the form of:
+     * `url?callback=Ext.data.JsonP.callback1`
+     */
+    callbackKey: 'callback',
+
+    /**
+     * Makes a JSONP request.
+     * @param {Object} options An object which may contain the following properties. Note that options will take
+     * priority over any defaults that are specified in the class.
+     *
+     * @param {String} options.url  The URL to request.
+     * @param {Object} [options.params]  An object containing a series of key value pairs that will be sent along with the request.
+     * @param {Number} [options.timeout]  See {@link #timeout}
+     * @param {String} [options.callbackKey]  See {@link #callbackKey}
+     * @param {String} [options.callbackName]  See {@link #callbackKey}
+     *   The function name to use for this request. By default this name will be auto-generated: Ext.data.JsonP.callback1,
+     *   Ext.data.JsonP.callback2, etc. Setting this option to "my_name" will force the function name to be
+     *   Ext.data.JsonP.my_name. Use this if you want deterministic behavior, but be careful - the callbackName should be
+     *   different in each JsonP request that you make.
+     * @param {Boolean}  [options.disableCaching]  See {@link #disableCaching}
+     * @param {String}   [options.disableCachingParam]  See {@link #disableCachingParam}
+     * @param {Function} [options.success]  A function to execute if the request succeeds.
+     * @param {Function} [options.failure]  A function to execute if the request fails.
+     * @param {Function} [options.callback]  A function to execute when the request completes, whether it is a success or failure.
+     * @param {Object}   [options.scope]  The scope in which to execute the callbacks: The "this" object for the
+     *   callback function. Defaults to the browser window.
+     *
+     * @return {Object}  request An object containing the request details.
+     */
+    request: function(options){
+        options = Ext.apply({}, options);
+
+        if (!options.url) {
+            Ext.Logger.error('A url must be specified for a JSONP request.');
+        }
+
+        var me = this,
+            disableCaching = Ext.isDefined(options.disableCaching) ? options.disableCaching : me.disableCaching,
+            cacheParam = options.disableCachingParam || me.disableCachingParam,
+            id = ++me.requestCount,
+            callbackName = options.callbackName || 'callback' + id,
+            callbackKey = options.callbackKey || me.callbackKey,
+            timeout = Ext.isDefined(options.timeout) ? options.timeout : me.timeout,
+            params = Ext.apply({}, options.params),
+            url = options.url,
+            name = Ext.isSandboxed ? Ext.getUniqueGlobalNamespace() : 'Ext',
+            request,
+            script;
+
+        params[callbackKey] = name + '.data.JsonP.' + callbackName;
+        if (disableCaching) {
+            params[cacheParam] = new Date().getTime();
+        }
+
+        script = me.createScript(url, params, options);
+
+        me.requests[id] = request = {
+            url: url,
+            params: params,
+            script: script,
+            id: id,
+            scope: options.scope,
+            success: options.success,
+            failure: options.failure,
+            callback: options.callback,
+            callbackKey: callbackKey,
+            callbackName: callbackName
+        };
+
+        if (timeout > 0) {
+            request.timeout = setTimeout(Ext.bind(me.handleTimeout, me, [request]), timeout);
+        }
+
+        me.setupErrorHandling(request);
+        me[callbackName] = Ext.bind(me.handleResponse, me, [request], true);
+        me.loadScript(request);
+        return request;
+    },
+
+    /**
+     * Abort a request. If the request parameter is not specified all open requests will be aborted.
+     * @param {Object/String} request The request to abort.
+     */
+    abort: function(request){
+        var requests = this.requests,
+            key;
+
+        if (request) {
+            if (!request.id) {
+                request = requests[request];
+            }
+            this.handleAbort(request);
+        } else {
+            for (key in requests) {
+                if (requests.hasOwnProperty(key)) {
+                    this.abort(requests[key]);
+                }
+            }
+        }
+    },
+
+    /**
+     * Sets up error handling for the script.
+     * @private
+     * @param {Object} request The request.
+     */
+    setupErrorHandling: function(request){
+        request.script.onerror = Ext.bind(this.handleError, this, [request]);
+    },
+
+    /**
+     * Handles any aborts when loading the script.
+     * @private
+     * @param {Object} request The request.
+     */
+    handleAbort: function(request){
+        request.errorType = 'abort';
+        this.handleResponse(null, request);
+    },
+
+    /**
+     * Handles any script errors when loading the script.
+     * @private
+     * @param {Object} request The request.
+     */
+    handleError: function(request){
+        request.errorType = 'error';
+        this.handleResponse(null, request);
+    },
+
+    /**
+     * Cleans up any script handling errors.
+     * @private
+     * @param {Object} request The request.
+     */
+    cleanupErrorHandling: function(request){
+        request.script.onerror = null;
+    },
+
+    /**
+     * Handle any script timeouts.
+     * @private
+     * @param {Object} request The request.
+     */
+    handleTimeout: function(request){
+        request.errorType = 'timeout';
+        this.handleResponse(null, request);
+    },
+
+    /**
+     * Handle a successful response
+     * @private
+     * @param {Object} result The result from the request
+     * @param {Object} request The request
+     */
+    handleResponse: function(result, request){
+        var success = true;
+
+        if (request.timeout) {
+            clearTimeout(request.timeout);
+        }
+
+        delete this[request.callbackName];
+        delete this.requests[request.id];
+
+        this.cleanupErrorHandling(request);
+        Ext.fly(request.script).destroy();
+
+        if (request.errorType) {
+            success = false;
+            Ext.callback(request.failure, request.scope, [request.errorType, request]);
+        } else {
+            Ext.callback(request.success, request.scope, [result, request]);
+        }
+        Ext.callback(request.callback, request.scope, [success, result, request.errorType, request]);
+    },
+
+    /**
+     * Create the script tag given the specified url, params and options. The options
+     * parameter is passed to allow an override to access it.
+     * @private
+     * @param {String} url The url of the request
+     * @param {Object} params Any extra params to be sent
+     * @param {Object} options The object passed to {@link #request}.
+     */
+    createScript: function(url, params, options) {
+        var script = document.createElement('script');
+        script.setAttribute("src", Ext.urlAppend(url, Ext.Object.toQueryString(params)));
+        script.setAttribute("async", true);
+        script.setAttribute("type", "text/javascript");
+        return script;
+    },
+
+    /**
+     * Loads the script for the given request by appending it to the HEAD element. This is
+     * its own method so that users can override it (as well as {@link #createScript}).
+     * @private
+     * @param {Object} request The request object.
+     */
+    loadScript: function (request) {
+        Ext.getHead().appendChild(request.script);
+    }
+});
+
+/**
  * @class Ext.data.NodeInterface
  * This class is meant to be used as a set of methods that are applied to the prototype of a
  * Record to decorate it with a Node API. This means that models used in conjunction with a tree
@@ -69831,35 +70128,37 @@ Ext.define('Ext.ux.touch.SwipeTabs', {
     },
 
     onSwipe : function(e) {
-        var cmp           = this.getCmp(),
-            allowOverflow = this.getAllowOverflow(),
-            animation     = this.getAnimation(),
-            direction     = e.direction,
-            activeItem    = cmp.getActiveItem(),
-            innerItems    = cmp.getInnerItems(),
-            numIdx        = innerItems.length - 1,
-            idx           = Ext.Array.indexOf(innerItems, activeItem),
-            newIdx        = idx + (direction === 'left' ? 1 : -1),
-            newItem;
+        if(e.direction === 'left' || e.direction === 'right') {
+            var cmp           = this.getCmp(),
+                allowOverflow = this.getAllowOverflow(),
+                animation     = this.getAnimation(),
+                direction     = e.direction,
+                activeItem    = cmp.getActiveItem(),
+                innerItems    = cmp.getInnerItems(),
+                numIdx        = innerItems.length - 1,
+                idx           = Ext.Array.indexOf(innerItems, activeItem),
+                newIdx        = idx + (direction === 'left' ? 1 : -1),
+                newItem;
 
-        if (newIdx < 0) {
-            if (allowOverflow) {
-                newItem = innerItems[numIdx];
+            if (newIdx < 0) {
+                if (allowOverflow) {
+                    newItem = innerItems[numIdx];
+                }
+            } else if (newIdx > numIdx) {
+                if (allowOverflow) {
+                    newItem = innerItems[0];
+                }
+            } else {
+                newItem = innerItems[newIdx]
             }
-        } else if (newIdx > numIdx) {
-            if (allowOverflow) {
-                newItem = innerItems[0];
+
+            if (newItem) {
+                animation = Ext.apply({}, {
+                    direction : direction
+                }, animation);
+
+                cmp.animateActiveItem(newItem, animation);
             }
-        } else {
-            newItem = innerItems[newIdx]
-        }
-
-        if (newItem) {
-            animation = Ext.apply({}, {
-                direction : direction
-            }, animation);
-
-            cmp.animateActiveItem(newItem, animation);
         }
     }
 
@@ -71790,7 +72089,7 @@ Ext.define('MedBlogs.model.Subscriptions',{
 	}
 });
 
-Ext.define('MedBlogs.model.Tasks',{
+Ext.define('MedBlogs.model.PinnedPosts',{
 
 	extend:  Ext.data.Model ,
 	config: {
@@ -71805,6 +72104,76 @@ Ext.define('MedBlogs.model.Tasks',{
 			'complete'
 		]
 	}
+});
+
+Ext.define('MedBlogs.model.CardCategories', {
+    extend:  Ext.data.Model ,
+
+    config: {
+        fields: [
+            'id',
+            'first_name',
+            'last_name',
+            'sessionIds',
+            'bio',
+            'position',
+            'photo',
+            'affiliation',
+            'url',
+            'twitter'
+        ]
+    }
+});
+
+Ext.define('MedBlogs.model.FlashCards', {
+    extend:  Ext.data.Model ,
+
+    config: {
+        fields: [
+            'id',
+            'category',
+            'question',
+            'answer'
+        ]
+    }
+});
+
+Ext.define('MedBlogs.util.Proxy', {
+    singleton: true,
+                                 
+
+    process: function(url) {
+        var speakerStore = Ext.getStore('CardCategories'),
+            speakerIds = [],
+            speakerModel;
+
+        Ext.data.JsonP.request({
+            url: url,
+            callbackName: 'feedCb',
+
+            success: function(data) {
+                Ext.Array.each(data.proposals, function(proposal) {
+                    Ext.Array.each(proposal.speakers, function(speaker) {
+                        // don't add duplicates or items with no photos.
+                        if (speakerIds.indexOf(speaker.id) == -1 && speaker.photo && speakerIds.length < 25) {
+                            speakerIds.push(speaker.id);
+
+                            speakerModel = Ext.create('MedBlogs.model.CardCategories', speaker);
+                            speakerStore.add(speakerModel);
+                        }
+                    });
+                });
+            }
+        });
+    }
+});
+
+Ext.define('MedBlogs.store.CardCategories', {
+    extend:  Ext.data.Store ,
+
+    config: {
+        model: 'MedBlogs.model.CardCategories'
+    }
 });
 
 Ext.define('MedBlogs.store.Announcements',{
@@ -72025,28 +72394,40 @@ Ext.define('MedBlogs.view.FlashCards', {
 	xtype: 'flashCardScreen',
 	
 	           
-		              
+		               
+		                                
+		                               
 	  
 	
 
 	config: {
 		title: 'Flash Cards',
-		iconCls: 'cardIcon',
+		iconCls: 'tagIcon',
+		layout: 'card',
+
 		items: [
 			{
 				docked: 'top',
 				xtype: 'titlebar',
 				title: 'Flash Cards'
-			}
+			},
+			{
+	            xtype: 'dataview',
+	            scrollable: true,
+	            inline: true,
+	            cls: 'dataview-inline',
+	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            store: 'CardCategories'
+        	}
 		]
 	}
 	
 });
 
-Ext.define('MedBlogs.store.Tasks',{
+Ext.define('MedBlogs.store.PinnedPosts',{
 	extend:  Ext.data.Store ,
 	config: {
-		model: 'MedBlogs.model.Tasks',
+		model: 'MedBlogs.model.PinnedPosts',
 		data: 
 		[
 			{
@@ -72079,13 +72460,13 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 	           
 		               
 		                    
-		                       
-		                      
+		                             
+		                            
 	  
 	
 	config: {
 		title: 'Pinned Posts',
-		iconCls: 'listIcon',
+		iconCls: 'favIcon',
 		layout: 'card',
 		
 		items: [
@@ -72097,7 +72478,7 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 			{
 				xtype: 'list',
 				variableHeights: true,
-				store: 'Tasks',
+				store: 'PinnedPosts',
 				itemTpl: ['<div class="feed_list">',
 							'<div class="category">{category}</div>',
 							'<span class="title">{title}</span><br/>',
@@ -72224,7 +72605,10 @@ Ext.define('MedBlogs.view.Main', {
         tabBarPosition: 'bottom',
 
 		fullscreen: true, 
-		
+		defaults: {
+            scroll: 'vertical'
+        },
+        
         items: [
             {
                 xtype: 'feedsNavigation'
@@ -72303,8 +72687,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onSettingTap: function(list, index, node, record) {
         // check and only show on select 
-        //CHECK NEEDED
-        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
+        if(list.isSelected(record) === false)
+            Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
     },
 
     onFeedTap: function(list, index, node, record) {
@@ -72340,6 +72724,28 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     }
 });
 
+Ext.define('MedBlogs.store.FlashCards',{
+	extend:  Ext.data.Store ,
+	config: {
+		model: 'MedBlogs.model.FlashCards',
+		data: 
+		[
+			{
+				id : '1', 
+				category: 'anatomy',
+				question: 'Which part of the body lala ?',
+				answer: 'This part of the body lala'
+			},
+			{
+				id : '2', 
+				category: 'anatomy',
+				question: 'Which bone in the body is... ?',
+				answer: 'This bone is ...'
+			}
+		]
+	}
+});
+
 /*
     This file is generated and updated by Sencha Cmd. You can edit this file as
     needed for your application, but these edits will have to be merged by
@@ -72366,13 +72772,17 @@ Ext.application({
     models: [
     	'Announcements',
         'Subscriptions',
-        'Tasks'
+        'PinnedPosts',
+        'CardCategories',
+        'FlashCards'
     ],
     
     stores: [
     	'Announcements',
         'Subscriptions',
-        'Tasks'
+        'PinnedPosts',
+        'CardCategories',
+        'FlashCards'
     ],
     
     views: [
@@ -72405,6 +72815,9 @@ Ext.application({
     },
 
     launch: function() {
+        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        MedBlogs.util.Proxy.process('feed.js');
+
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
