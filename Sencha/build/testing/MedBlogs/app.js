@@ -72415,8 +72415,11 @@ Ext.define('MedBlogs.view.FlashCards', {
 	            xtype: 'dataview',
 	            scrollable: true,
 	            inline: true,
+	            mode: 'MULTI',
 	            cls: 'dataview-inline',
 	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
+	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
 	            store: 'CardCategories'
         	}
 		]
@@ -72724,6 +72727,29 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     }
 });
 
+Ext.define('MedBlogs.controller.FlashCardsController', {
+    extend:  Ext.app.Controller ,
+
+    config: {
+        refs: {
+            flashCardScreen: 'flashCardScreen'
+        },
+
+        control: {
+            'flashCardScreen dataview': {
+                itemtap: 'onCategoryTap'
+            }
+
+        }
+    },
+
+    onCategoryTap: function(list, index, node, record) {
+        // check and only show on select 
+        //if(list.isSelected(record) === true)
+            Ext.Msg.confirm(record.get('first_name'), "Would you like to select " + record.get('first_name') + "?", Ext.emptyFn);
+    }
+});
+
 Ext.define('MedBlogs.store.FlashCards',{
 	extend:  Ext.data.Store ,
 	config: {
@@ -72766,7 +72792,8 @@ Ext.application({
       
 
     controllers: [
-        'FeedsNavigationController'
+        'FeedsNavigationController',
+        'FlashCardsController'
     ],
 
     models: [

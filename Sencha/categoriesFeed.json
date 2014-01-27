@@ -1,0 +1,62 @@
+[
+            {
+                "category" : "AGEING AND CHILDHOOD DEVELOPMENT", 
+                "photoUrl": "link 1",
+                "dbID":"lala"
+            },
+            {
+                "category" : "CARDIOVASCULAR", 
+                "photoUrl": "link 2",
+                "dbID":"lala"
+            },
+            {
+                "category" : "DERMATOLOGY", 
+                "photoUrl": "link 3",
+                "dbID":"lala"
+            },
+            {
+                "category" : "ENDOCRINE", 
+                "photoUrl": "link 4",
+                "dbID":"lala"
+            },
+            {
+                "category" : "ENT", 
+                "photoUrl": "link 5",
+                "dbID":"lala"
+            },
+            {
+                "category" : "HAEMATOLOGY", 
+                "photoUrl": "link 6",
+                "dbID":"lala"
+            },
+            {
+                "category" : "MUSCULOSKELETAL", 
+                "photoUrl": "link 7",
+                "dbID":"lala"
+            },
+            {
+                "category" : "NEUROLOGY", 
+                "photoUrl": "link 8",
+                "dbID":"lala"
+            },
+            {
+                "category" : "OPTHALMOLOGY", 
+                "photoUrl": "link 9",
+                "dbID":"lala"
+            },
+            {
+                "category" : "PSYCHIATRY", 
+                "photoUrl": "link 10",
+                "dbID":"lala"
+            },
+            {
+                "category" : "RENAL", 
+                "photoUrl": "link 11",
+                "dbID":"lala"
+            },
+            {
+                "category" : "RESIPIRATORY", 
+                "photoUrl": "link 12",
+                "dbID":"lala"
+            }
+]

@@ -18,7 +18,8 @@ Ext.application({
     ],
 
     controllers: [
-        'FeedsNavigationController'
+        'FeedsNavigationController',
+        'FlashCardsController'
     ],
 
     models: [

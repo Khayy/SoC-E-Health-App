@@ -656,6 +656,7 @@ Ext.ClassManager.addNameAlternateMappings({
     "Ext.viewport.WP"
   ],
   "MedBlogs.controller.FeedsNavigationController": [],
+  "MedBlogs.controller.FlashCardsController": [],
   "MedBlogs.model.Announcements": [],
   "MedBlogs.model.CardCategories": [],
   "MedBlogs.model.FlashCards": [],
@@ -1416,6 +1417,7 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.viewport.Viewport": [],
   "Ext.viewport.WindowsPhone": [],
   "MedBlogs.controller.FeedsNavigationController": [],
+  "MedBlogs.controller.FlashCardsController": [],
   "MedBlogs.model.Announcements": [],
   "MedBlogs.model.CardCategories": [],
   "MedBlogs.model.FlashCards": [],

@@ -24,8 +24,11 @@ Ext.define('MedBlogs.view.FlashCards', {
 	            xtype: 'dataview',
 	            scrollable: true,
 	            inline: true,
+	            mode: 'MULTI',
 	            cls: 'dataview-inline',
 	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
+	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
 	            store: 'CardCategories'
         	}
 		]
