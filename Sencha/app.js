@@ -19,6 +19,7 @@ Ext.application({
 
     controllers: [
         'FeedsNavigationController',
+        //'PinnedPostsController',
         'FlashCardsController'
     ],
 

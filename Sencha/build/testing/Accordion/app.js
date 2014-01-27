@@ -40076,6 +40076,346 @@ Ext.define('Ext.MessageBox', {
 
 
 /**
+ * SegmentedButton is a container for a group of {@link Ext.Button}s. Generally a SegmentedButton would be
+ * a child of a {@link Ext.Toolbar} and would be used to switch between different views.
+ *
+ * ## Example usage:
+ *
+ *     @example
+ *     var segmentedButton = Ext.create('Ext.SegmentedButton', {
+ *         allowMultiple: true,
+ *         items: [
+ *             {
+ *                 text: 'Option 1'
+ *             },
+ *             {
+ *                 text: 'Option 2',
+ *                 pressed: true
+ *             },
+ *             {
+ *                 text: 'Option 3'
+ *             }
+ *         ],
+ *         listeners: {
+ *             toggle: function(container, button, pressed){
+ *                 alert("User toggled the '" + button.getText() + "' button: " + (pressed ? 'on' : 'off'));
+ *             }
+ *         }
+ *     });
+ *     Ext.Viewport.add({ xtype: 'container', padding: 10, items: [segmentedButton] });
+ */
+Ext.define('Ext.SegmentedButton', {
+    extend:  Ext.Container ,
+    xtype : 'segmentedbutton',
+                             
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'segmentedbutton',
+
+        /**
+         * @cfg {String} pressedCls
+         * CSS class when a button is in pressed state.
+         * @accessor
+         */
+        pressedCls: Ext.baseCSSPrefix + 'button-pressed',
+
+        /**
+         * @cfg {Boolean} allowMultiple
+         * Allow multiple pressed buttons.
+         * @accessor
+         */
+        allowMultiple: false,
+
+        /**
+         * @cfg {Boolean} allowDepress
+         * Allow toggling the pressed state of each button.
+         * Defaults to `true` when {@link #allowMultiple} is `true`.
+         * @accessor
+         */
+        allowDepress: false,
+
+        /**
+         * @cfg {Boolean} allowToggle Allow child buttons to be pressed when tapped on. Set to `false` to allow tapping but not toggling of the buttons.
+         * @accessor
+         */
+        allowToggle: true,
+
+        /**
+         * @cfg {Array} pressedButtons
+         * The pressed buttons for this segmented button.
+         *
+         * You can remove all pressed buttons by calling {@link #setPressedButtons} with an empty array.
+         * @accessor
+         */
+        pressedButtons: [],
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        layout: {
+            type : 'hbox',
+            align: 'stretch'
+        },
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        defaultType: 'button'
+    },
+
+    /**
+     * @event toggle
+     * Fires when any child button's pressed state has changed.
+     * @param {Ext.SegmentedButton} this
+     * @param {Ext.Button} button The toggled button.
+     * @param {Boolean} isPressed Boolean to indicate if the button was pressed or not.
+     */
+
+    initialize: function() {
+        var me = this;
+
+        me.callParent();
+
+        me.on({
+            delegate: '> button',
+            scope   : me,
+            tap: 'onButtonRelease'
+        });
+
+        me.onAfter({
+            delegate: '> button',
+            scope   : me,
+            hide: 'onButtonHiddenChange',
+            show: 'onButtonHiddenChange'
+        });
+    },
+
+    updateAllowMultiple: function(allowMultiple) {
+        if (!this.initialized && !this.getInitialConfig().hasOwnProperty('allowDepress') && allowMultiple) {
+            this.setAllowDepress(true);
+        }
+    },
+
+    /**
+     * We override `initItems` so we can check for the pressed config.
+     */
+    applyItems: function() {
+        var me = this,
+            pressedButtons = [],
+            ln, i, item, items;
+
+        //call the parent first so the items get converted into a MixedCollection
+        me.callParent(arguments);
+
+        items = this.getItems();
+        ln = items.length;
+
+        for (i = 0; i < ln; i++) {
+            item = items.items[i];
+            if (item.getInitialConfig('pressed')) {
+                pressedButtons.push(items.items[i]);
+            }
+        }
+
+        me.updateFirstAndLastCls(items);
+
+        me.setPressedButtons(pressedButtons);
+    },
+
+    /**
+     * Button sets a timeout of 10ms to remove the {@link #pressedCls} on the release event.
+     * We don't want this to happen, so lets return `false` and cancel the event.
+     * @private
+     */
+    onButtonRelease: function(button) {
+        if (!this.getAllowToggle()) {
+            return;
+        }
+        var me             = this,
+            pressedButtons = me.getPressedButtons() || [],
+            buttons        = [],
+            alreadyPressed;
+
+        if (!me.getDisabled() && !button.getDisabled()) {
+            //if we allow for multiple pressed buttons, use the existing pressed buttons
+            if (me.getAllowMultiple()) {
+                buttons = pressedButtons.concat(buttons);
+            }
+
+            alreadyPressed = (buttons.indexOf(button) !== -1) || (pressedButtons.indexOf(button) !== -1);
+
+            //if we allow for depressing buttons, and the new pressed button is currently pressed, remove it
+            if (alreadyPressed && me.getAllowDepress()) {
+                Ext.Array.remove(buttons, button);
+            } else if (!alreadyPressed || !me.getAllowDepress()) {
+                buttons.push(button);
+            }
+
+            me.setPressedButtons(buttons);
+        }
+    },
+
+    onItemAdd: function() {
+        this.callParent(arguments);
+        this.updateFirstAndLastCls(this.getItems());
+    },
+
+    onItemRemove: function() {
+        this.callParent(arguments);
+        this.updateFirstAndLastCls(this.getItems());
+    },
+
+    // @private
+    onButtonHiddenChange: function() {
+        this.updateFirstAndLastCls(this.getItems());
+    },
+
+    // @private
+    updateFirstAndLastCls: function(items) {
+        var ln = items.length,
+            basePrefix = Ext.baseCSSPrefix,
+            firstCls = basePrefix + 'first',
+            lastCls = basePrefix + 'last',
+            item, i;
+
+        //remove all existing classes
+        for (i = 0; i < ln; i++) {
+            item = items.items[i];
+            item.removeCls(firstCls);
+            item.removeCls(lastCls);
+        }
+
+        //add a first cls to the first non-hidden button
+        for (i = 0; i < ln; i++) {
+            item = items.items[i];
+            if (!item.isHidden()) {
+                item.addCls(firstCls);
+                break;
+            }
+        }
+
+        //add a last cls to the last non-hidden button
+        for (i = ln - 1; i >= 0; i--) {
+            item = items.items[i];
+            if (!item.isHidden()) {
+                item.addCls(lastCls);
+                break;
+            }
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyPressedButtons: function(newButtons) {
+        var me    = this,
+            array = [],
+            button, ln, i;
+
+        if (me.getAllowToggle()) {
+            if (Ext.isArray(newButtons)) {
+                ln = newButtons.length;
+                for (i = 0; i< ln; i++) {
+                    button = me.getComponent(newButtons[i]);
+                    if (button && array.indexOf(button) === -1) {
+                        array.push(button);
+                    }
+                }
+            } else {
+                button = me.getComponent(newButtons);
+                if (button && array.indexOf(button) === -1) {
+                    array.push(button);
+                }
+            }
+        }
+
+        return array;
+    },
+
+    /**
+     * Updates the pressed buttons.
+     * @private
+     */
+    updatePressedButtons: function(newButtons, oldButtons) {
+        var me    = this,
+            items = me.getItems(),
+            pressedCls = me.getPressedCls(),
+            events = [],
+            item, button, ln, i, e;
+
+        //loop through existing items and remove the pressed cls from them
+        ln = items.length;
+        if (oldButtons && oldButtons.length) {
+            for (i = 0; i < ln; i++) {
+                item = items.items[i];
+
+                if (oldButtons.indexOf(item) != -1 && newButtons.indexOf(item) == -1) {
+                    item.removeCls([pressedCls, item.getPressedCls()]);
+                    events.push({
+                        item: item,
+                        toggle: false
+                    });
+                }
+            }
+        }
+
+        //loop through the new pressed buttons and add the pressed cls to them
+        ln = newButtons.length;
+        for (i = 0; i < ln; i++) {
+            button = newButtons[i];
+            if (!oldButtons || oldButtons.indexOf(button) == -1) {
+                button.addCls(pressedCls);
+                events.push({
+                    item: button,
+                    toggle: true
+                });
+            }
+        }
+
+        //loop through each of the events and fire them after a delay
+        ln = events.length;
+        if (ln && oldButtons !== undefined) {
+            Ext.defer(function() {
+                for (i = 0; i < ln; i++) {
+                    e = events[i];
+                    me.fireEvent('toggle', me, e.item, e.toggle);
+                }
+            }, 50);
+        }
+    },
+
+    /**
+     * Returns `true` if a specified {@link Ext.Button} is pressed.
+     * @param {Ext.Button} button The button to check if pressed.
+     * @return {Boolean} pressed
+     */
+    isPressed: function(button) {
+        var pressedButtons = this.getPressedButtons();
+        return pressedButtons.indexOf(button) != -1;
+    },
+
+    /**
+     * @private
+     */
+    doSetDisabled: function(disabled) {
+        var me = this;
+
+        me.items.each(function(item) {
+            item.setDisabled(disabled);
+        }, me);
+
+        me.callParent(arguments);
+    }
+}, function() {
+});
+
+/**
  * {@link Ext.TitleBar}'s are most commonly used as a docked item within an {@link Ext.Container}.
  *
  * The main difference between a {@link Ext.TitleBar} and an {@link Ext.Toolbar} is that
@@ -57707,827 +58047,288 @@ Ext.define('Ext.data.TreeStore', {
 });
 
 /**
- * @author Tommy Maintz
- *
- * This class generates UUID's according to RFC 4122. This class has a default id property.
- * This means that a single instance is shared unless the id property is overridden. Thus,
- * two {@link Ext.data.Model} instances configured like the following share one generator:
- *
- *     Ext.define('MyApp.data.MyModelX', {
- *         extend: 'Ext.data.Model',
- *         config: {
- *             identifier: 'uuid'
- *         }
- *     });
- *
- *     Ext.define('MyApp.data.MyModelY', {
- *         extend: 'Ext.data.Model',
- *         config: {
- *             identifier: 'uuid'
- *         }
- *     });
- *
- * This allows all models using this class to share a commonly configured instance.
- *
- * # Using Version 1 ("Sequential") UUID's
- *
- * If a server can provide a proper timestamp and a "cryptographic quality random number"
- * (as described in RFC 4122), the shared instance can be configured as follows:
- *
- *     Ext.data.identifier.Uuid.Global.reconfigure({
- *         version: 1,
- *         clockSeq: clock, // 14 random bits
- *         salt: salt,      // 48 secure random bits (the Node field)
- *         timestamp: ts    // timestamp per Section 4.1.4
- *     });
- *
- *     // or these values can be split into 32-bit chunks:
- *
- *     Ext.data.identifier.Uuid.Global.reconfigure({
- *         version: 1,
- *         clockSeq: clock,
- *         salt: { lo: saltLow32, hi: saltHigh32 },
- *         timestamp: { lo: timestampLow32, hi: timestamptHigh32 }
- *     });
- *
- * This approach improves the generator's uniqueness by providing a valid timestamp and
- * higher quality random data. Version 1 UUID's should not be used unless this information
- * can be provided by a server and care should be taken to avoid caching of this data.
- *
- * See [http://www.ietf.org/rfc/rfc4122.txt](http://www.ietf.org/rfc/rfc4122.txt) for details.
- */
-Ext.define('Ext.data.identifier.Uuid', {
-    extend:  Ext.data.identifier.Simple ,
-    alias: 'data.identifier.uuid',
-
-    /**
-     * Provides a way to determine if this identifier supports creating unique IDs. Proxies like {@link Ext.data.proxy.LocalStorage}
-     * need the identifier to create unique IDs and will check this property.
-     * @property isUnique
-     * @type Boolean
-     * @private
-     */
-    isUnique: true,
-
-    config: {
-        /**
-         * The id for this generator instance. By default all model instances share the same
-         * UUID generator instance. By specifying an id other then 'uuid', a unique generator instance
-         * will be created for the Model.
-         */
-        id: undefined,
-
-        /**
-         * @property {Number/Object} salt
-         * When created, this value is a 48-bit number. For computation, this value is split
-         * into 32-bit parts and stored in an object with `hi` and `lo` properties.
-         */
-        salt: null,
-
-        /**
-         * @property {Number/Object} timestamp
-         * When created, this value is a 60-bit number. For computation, this value is split
-         * into 32-bit parts and stored in an object with `hi` and `lo` properties.
-         */
-        timestamp: null,
-
-        /**
-         * @cfg {Number} version
-         * The Version of UUID. Supported values are:
-         *
-         *  * 1 : Time-based, "sequential" UUID.
-         *  * 4 : Pseudo-random UUID.
-         *
-         * The default is 4.
-         */
-        version: 4
-    },
-
-    applyId: function(id) {
-        if (id === undefined) {
-            return Ext.data.identifier.Uuid.Global;
-        }
-        return id;
-    },
-
-    constructor: function() {
-        var me = this;
-        me.callParent(arguments);
-        me.parts = [];
-        me.init();
-    },
-
-    /**
-     * Reconfigures this generator given new config properties.
-     */
-    reconfigure: function(config) {
-        this.setConfig(config);
-        this.init();
-    },
-
-    generate: function () {
-        var me = this,
-            parts = me.parts,
-            version = me.getVersion(),
-            salt = me.getSalt(),
-            time = me.getTimestamp();
-
-        /*
-           The magic decoder ring (derived from RFC 4122 Section 4.2.2):
-
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                          time_low                             |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |           time_mid            |  ver  |        time_hi        |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |res|  clock_hi |   clock_low   |    salt 0   |M|     salt 1    |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                         salt (2-5)                            |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-                     time_mid      clock_hi (low 6 bits)
-            time_low     | time_hi |clock_lo
-                |        |     |   || salt[0]
-                |        |     |   ||   | salt[1..5]
-                v        v     v   vv   v v
-                0badf00d-aced-1def-b123-dfad0badbeef
-                              ^    ^     ^
-                        version    |     multicast (low bit)
-                                   |
-                                reserved (upper 2 bits)
-        */
-        parts[0] = me.toHex(time.lo, 8);
-        parts[1] = me.toHex(time.hi & 0xFFFF, 4);
-        parts[2] = me.toHex(((time.hi >>> 16) & 0xFFF) | (version << 12), 4);
-        parts[3] = me.toHex(0x80 | ((me.clockSeq >>> 8) & 0x3F), 2) +
-                   me.toHex(me.clockSeq & 0xFF, 2);
-        parts[4] = me.toHex(salt.hi, 4) + me.toHex(salt.lo, 8);
-
-        if (version == 4) {
-            me.init(); // just regenerate all the random values...
-        } else {
-            // sequentially increment the timestamp...
-            ++time.lo;
-            if (time.lo >= me.twoPow32) { // if (overflow)
-                time.lo = 0;
-                ++time.hi;
-            }
-        }
-
-        return parts.join('-').toLowerCase();
-    },
-
-    /**
-     * @private
-     */
-    init: function () {
-        var me = this,
-            salt = me.getSalt(),
-            time = me.getTimestamp();
-
-        if (me.getVersion() == 4) {
-            // See RFC 4122 (Secion 4.4)
-            //   o  If the state was unavailable (e.g., non-existent or corrupted),
-            //      or the saved node ID is different than the current node ID,
-            //      generate a random clock sequence value.
-            me.clockSeq = me.rand(0, me.twoPow14-1);
-
-            if (!salt) {
-                salt = {};
-                me.setSalt(salt);
-            }
-
-            if (!time) {
-                time = {};
-                me.setTimestamp(time);
-            }
-
-            // See RFC 4122 (Secion 4.4)
-            salt.lo = me.rand(0, me.twoPow32-1);
-            salt.hi = me.rand(0, me.twoPow16-1);
-            time.lo = me.rand(0, me.twoPow32-1);
-            time.hi = me.rand(0, me.twoPow28-1);
-        } else {
-            // this is run only once per-instance
-            me.setSalt(me.split(me.getSalt()));
-            me.setTimestamp(me.split(me.getTimestamp()));
-
-            // Set multicast bit: "the least significant bit of the first octet of the
-            // node ID" (nodeId = salt for this implementation):
-            me.getSalt().hi |= 0x100;
-        }
-    },
-
-    /**
-     * Some private values used in methods on this class.
-     * @private
-     */
-    twoPow14: Math.pow(2, 14),
-    twoPow16: Math.pow(2, 16),
-    twoPow28: Math.pow(2, 28),
-    twoPow32: Math.pow(2, 32),
-
-    /**
-     * Converts a value into a hexadecimal value. Also allows for a maximum length
-     * of the returned value.
-     * @param {String} value
-     * @param {Number} length
-     * @private
-     */
-    toHex: function(value, length) {
-        var ret = value.toString(16);
-        if (ret.length > length) {
-            ret = ret.substring(ret.length - length); // right-most digits
-        } else if (ret.length < length) {
-            ret = Ext.String.leftPad(ret, length, '0');
-        }
-        return ret;
-    },
-
-    /**
-     * Generates a random value with between a low and high.
-     * @param {Number} low
-     * @param {Number} high
-     * @private
-     */
-    rand: function(low, high) {
-        var v = Math.random() * (high - low + 1);
-        return Math.floor(v) + low;
-    },
-
-    /**
-     * Splits a number into a low and high value.
-     * @param {Number} bignum
-     * @private
-     */
-    split: function(bignum) {
-        if (typeof(bignum) == 'number') {
-            var hi = Math.floor(bignum / this.twoPow32);
-            return {
-                lo: Math.floor(bignum - hi * this.twoPow32),
-                hi: hi
-            };
-        }
-        return bignum;
-    }
-}, function() {
-    this.Global = new this({
-        id: 'uuid'
-    });
-});
-
-/**
- * @author Ed Spencer
- *
- * WebStorageProxy is simply a superclass for the {@link Ext.data.proxy.LocalStorage LocalStorage} proxy. It uses the
- * new HTML5 key/value client-side storage objects to save {@link Ext.data.Model model instances} for offline use.
- * @private
- */
-Ext.define('Ext.data.proxy.WebStorage', {
-    extend:  Ext.data.proxy.Client ,
-    alternateClassName: 'Ext.data.WebStorageProxy',
-
-                         
-
-    config: {
-        /**
-         * @cfg {String} id
-         * The unique ID used as the key in which all record data are stored in the local storage object.
-         */
-        id: undefined,
-
-        // WebStorage proxies dont use readers and writers
-        /**
-         * @cfg
-         * @hide
-         */
-        reader: null,
-        /**
-         * @cfg
-         * @hide
-         */
-        writer: null,
-
-        /**
-         * @cfg {Boolean} enablePagingParams This can be set to true if you want the webstorage proxy to comply
-         * to the paging params set on the store.
-         */
-        enablePagingParams: false,
-
-		defaultDateFormat: 'Y-m-d H:i:s.u'
-    },
-
-    /**
-     * Creates the proxy, throws an error if local storage is not supported in the current browser.
-     * @param {Object} config (optional) Config object.
-     */
-    constructor: function(config) {
-        this.callParent(arguments);
-
-        /**
-         * @property {Object} cache
-         * Cached map of records already retrieved by this Proxy. Ensures that the same instance is always retrieved.
-         */
-        this.cache = {};
-
-        if (this.getStorageObject() === undefined) {
-            Ext.Logger.error("Local Storage is not supported in this browser, please use another type of data proxy");
-        }
-    },
-
-    updateModel: function(model) {
-        if (!this.getId()) {
-            this.setId(model.modelName);
-        }
-
-        this.callParent(arguments);
-    },
-
-    //inherit docs
-    create: function(operation, callback, scope) {
-        var records = operation.getRecords(),
-            length  = records.length,
-            ids     = this.getIds(),
-            id, record, i;
-
-        operation.setStarted();
-
-        for (i = 0; i < length; i++) {
-            record = records[i];
-            if (!this.getModel().getIdentifier().isUnique) {
-                Ext.Logger.warn('Your identifier generation strategy for the model does not ensure unique id\'s. Please use the UUID strategy, or implement your own identifier strategy with the flag isUnique.');
-
-            }
-            id = record.getId();
-
-            this.setRecord(record);
-            ids.push(id);
-        }
-
-        this.setIds(ids);
-
-        operation.setCompleted();
-        operation.setSuccessful();
-
-        if (typeof callback == 'function') {
-            callback.call(scope || this, operation);
-        }
-    },
-
-    //inherit docs
-    read: function(operation, callback, scope) {
-        var records    = [],
-            ids        = this.getIds(),
-            model      = this.getModel(),
-            idProperty = model.getIdProperty(),
-            params     = operation.getParams() || {},
-            sorters = operation.getSorters(),
-            filters = operation.getFilters(),
-            start = operation.getStart(),
-            limit = operation.getLimit(),
-            length     = ids.length,
-            i, record, collection;
-
-        //read a single record
-        if (params[idProperty] !== undefined) {
-            record = this.getRecord(params[idProperty]);
-            if (record) {
-                records.push(record);
-                operation.setSuccessful();
-            }
-        }
-        else {
-            for (i = 0; i < length; i++) {
-                record = this.getRecord(ids[i]);
-                if (record) {
-                    records.push(record);
-                }
-            }
-
-            collection = Ext.create('Ext.util.Collection');
-
-            // First we comply to filters
-            if (filters && filters.length) {
-                collection.setFilters(filters);
-            }
-            // Then we comply to sorters
-            if (sorters && sorters.length) {
-                collection.setSorters(sorters);
-            }
-
-            collection.addAll(records);
-
-            if (this.getEnablePagingParams() && start !== undefined && limit !== undefined) {
-                records = collection.items.slice(start, start + limit);
-            } else {
-                records = collection.items.slice();
-            }
-
-            operation.setSuccessful();
-        }
-
-        operation.setCompleted();
-
-        operation.setResultSet(Ext.create('Ext.data.ResultSet', {
-            records: records,
-            total  : records.length,
-            loaded : true
-        }));
-        operation.setRecords(records);
-
-        if (typeof callback == 'function') {
-            callback.call(scope || this, operation);
-        }
-    },
-
-    //inherit docs
-    update: function(operation, callback, scope) {
-        var records = operation.getRecords(),
-            length  = records.length,
-            ids     = this.getIds(),
-            record, id, i;
-
-        operation.setStarted();
-
-        for (i = 0; i < length; i++) {
-            record = records[i];
-            this.setRecord(record);
-
-            //we need to update the set of ids here because it's possible that a non-phantom record was added
-            //to this proxy - in which case the record's id would never have been added via the normal 'create' call
-            id = record.getId();
-            if (id !== undefined && Ext.Array.indexOf(ids, id) == -1) {
-                ids.push(id);
-            }
-        }
-        this.setIds(ids);
-
-        operation.setCompleted();
-        operation.setSuccessful();
-
-        if (typeof callback == 'function') {
-            callback.call(scope || this, operation);
-        }
-    },
-
-    //inherit
-    destroy: function(operation, callback, scope) {
-        var records = operation.getRecords(),
-            length  = records.length,
-            ids     = this.getIds(),
-
-            //newIds is a copy of ids, from which we remove the destroyed records
-            newIds  = [].concat(ids),
-            i;
-
-        operation.setStarted();
-
-        for (i = 0; i < length; i++) {
-            Ext.Array.remove(newIds, records[i].getId());
-            this.removeRecord(records[i], false);
-        }
-
-        this.setIds(newIds);
-
-        operation.setCompleted();
-        operation.setSuccessful();
-
-        if (typeof callback == 'function') {
-            callback.call(scope || this, operation);
-        }
-    },
-
-    /**
-     * @private
-     * Fetches a model instance from the Proxy by ID. Runs each field's decode function (if present) to decode the data.
-     * @param {String} id The record's unique ID
-     * @return {Ext.data.Model} The model instance or undefined if the record did not exist in the storage.
-     */
-    getRecord: function(id) {
-        if (this.cache[id] === undefined) {
-            var recordKey = this.getRecordKey(id),
-                item = this.getStorageObject().getItem(recordKey),
-                data    = {},
-                Model   = this.getModel(),
-                fields  = Model.getFields().items,
-                length  = fields.length,
-                i, field, name, record, rawData, rawValue;
-
-            if (!item) {
-                return undefined;
-            }
-
-            rawData = Ext.decode(item);
-
-            for (i = 0; i < length; i++) {
-                field = fields[i];
-                name  = field.getName();
-				rawValue = rawData[name];
-
-                if (typeof field.getDecode() == 'function') {
-                    data[name] = field.getDecode()(rawValue);
-                } else {
-                    if (field.getType().type == 'date') {
-						data[name] = this.readDate(field, rawValue);
-                    } else {
-                        data[name] = rawValue;
-                    }
-                }
-            }
-
-            record = new Model(data, id);
-            this.cache[id] = record;
-        }
-
-        return this.cache[id];
-    },
-
-    /**
-     * Saves the given record in the Proxy. Runs each field's encode function (if present) to encode the data.
-     * @param {Ext.data.Model} record The model instance
-     * @param {String} [id] The id to save the record under (defaults to the value of the record's getId() function)
-     */
-    setRecord: function(record, id) {
-        if (id) {
-            record.setId(id);
-        } else {
-            id = record.getId();
-        }
-
-        var me = this,
-            rawData = record.getData(),
-            data    = {},
-            Model   = me.getModel(),
-            fields  = Model.getFields().items,
-            length  = fields.length,
-            i = 0,
-            rawValue, field, name, obj, key;
-
-        for (; i < length; i++) {
-            field = fields[i];
-            name  = field.getName();
-			rawValue = rawData[name];
-
-            if (field.getPersist() === false) {
-                continue;
-            }
-
-            if (typeof field.getEncode() == 'function') {
-                data[name] = field.getEncode()(rawValue, record);
-            } else {
-                if (field.getType().type == 'date' && Ext.isDate(rawValue)) {
-					data[name] = this.writeDate(field, rawValue);
-                } else {
-                    data[name] = rawValue;
-                }
-            }
-        }
-
-        obj = me.getStorageObject();
-        key = me.getRecordKey(id);
-
-        //keep the cache up to date
-        me.cache[id] = record;
-
-        //iPad bug requires that we remove the item before setting it
-        obj.removeItem(key);
-        try {
-            obj.setItem(key, Ext.encode(data));
-        } catch(e){
-            this.fireEvent('exception', this, e);
-        }
-
-        record.commit();
-    },
-
-    /**
-     * @private
-     * Physically removes a given record from the local storage. Used internally
-     * by {@link #destroy}, which you should use instead because it updates the
-     * list of currently-stored record ids.
-     * @param {String/Number/Ext.data.Model} id The id of the record to remove,
-     * or an Ext.data.Model instance.
-     * @param {Boolean} [updateIds] False to skip saving the array of ids
-     * representing the set of all records in the Proxy.
-     */
-    removeRecord: function(id, updateIds) {
-        var me = this,
-            ids;
-
-        if (id.isModel) {
-            id = id.getId();
-        }
-
-        if (updateIds !== false) {
-            ids = me.getIds();
-            Ext.Array.remove(ids, id);
-            me.setIds(ids);
-        }
-
-        delete this.cache[id];
-        me.getStorageObject().removeItem(me.getRecordKey(id));
-    },
-
-    /**
-     * @private
-     * Given the id of a record, returns a unique string based on that id and the id of this proxy. This is used when
-     * storing data in the local storage object and should prevent naming collisions.
-     * @param {String/Number/Ext.data.Model} id The record id, or a Model instance
-     * @return {String} The unique key for this record
-     */
-    getRecordKey: function(id) {
-        if (id.isModel) {
-            id = id.getId();
-        }
-
-        return Ext.String.format("{0}-{1}", this.getId(), id);
-    },
-
-    /**
-     * @private
-     * Returns the array of record IDs stored in this Proxy
-     * @return {Number[]} The record IDs. Each is cast as a Number
-     */
-    getIds: function() {
-        var ids    = (this.getStorageObject().getItem(this.getId()) || "").split(","),
-            length = ids.length,
-            i;
-
-        if (length == 1 && ids[0] === "") {
-            ids = [];
-        }
-
-        return ids;
-    },
-
-    /**
-     * @private
-     * Saves the array of ids representing the set of all records in the Proxy
-     * @param {Number[]} ids The ids to set
-     */
-    setIds: function(ids) {
-        var obj = this.getStorageObject(),
-            str = ids.join(","),
-            id  = this.getId();
-
-        obj.removeItem(id);
-
-        if (!Ext.isEmpty(str)) {
-            try {
-                obj.setItem(id, str);
-            } catch(e){
-                this.fireEvent('exception', this, e);
-            }
-        }
-    },
-
-	writeDate: function(field, date) {
-		if (Ext.isEmpty(date)) {
-			return null;
-		}
-
-		var dateFormat = field.getDateFormat() || this.getDefaultDateFormat();
-		switch (dateFormat) {
-			case 'timestamp':
-				return date.getTime() / 1000;
-			case 'time':
-				return date.getTime();
-			default:
-				return Ext.Date.format(date, dateFormat);
-		}
-	},
-
-	readDate: function(field, date) {
-		if (Ext.isEmpty(date)) {
-			return null;
-		}
-
-		var dateFormat = field.getDateFormat() || this.getDefaultDateFormat();
-		switch (dateFormat) {
-			case 'timestamp':
-				return new Date(date * 1000);
-			case 'time':
-				return new Date(date);
-            default:
-                return Ext.isDate(date) ? date : Ext.Date.parse(date, dateFormat);
-		}
-	},
-
-    /**
-     * @private
-     * Sets up the Proxy by claiming the key in the storage object that corresponds to the unique id of this Proxy. Called
-     * automatically by the constructor, this should not need to be called again unless {@link #clear} has been called.
-     */
-    initialize: function() {
-        this.callParent(arguments);
-        var storageObject = this.getStorageObject();
-        try {
-            storageObject.setItem(this.getId(), storageObject.getItem(this.getId()) || "");
-        } catch(e){
-            this.fireEvent('exception', this, e);
-        }
-    },
-
-    /**
-     * Destroys all records stored in the proxy and removes all keys and values used to support the proxy from the
-     * storage object.
-     */
-    clear: function() {
-        var obj = this.getStorageObject(),
-            ids = this.getIds(),
-            len = ids.length,
-            i;
-
-        //remove all the records
-        for (i = 0; i < len; i++) {
-            this.removeRecord(ids[i], false);
-        }
-
-        //remove the supporting objects
-        obj.removeItem(this.getId());
-    },
-
-    /**
-     * @private
-     * Abstract function which should return the storage object that data will be saved to. This must be implemented
-     * in each subclass.
-     * @return {Object} The storage object
-     */
-    getStorageObject: function() {
-        Ext.Logger.error("The getStorageObject function has not been defined in your Ext.data.proxy.WebStorage subclass");
-    }
-});
-
-/**
  * @author Ed Spencer
  * @aside guide proxies
  *
- * The LocalStorageProxy uses the new HTML5 localStorage API to save {@link Ext.data.Model Model} data locally on the
- * client browser. HTML5 localStorage is a key-value store (e.g. cannot save complex objects like JSON), so
- * LocalStorageProxy automatically serializes and deserializes data when saving and retrieving it.
+ * The JsonP proxy is useful when you need to load data from a domain other than the one your application is running on. If
+ * your application is running on http://domainA.com it cannot use {@link Ext.data.proxy.Ajax Ajax} to load its data
+ * from http://domainB.com because cross-domain ajax requests are prohibited by the browser.
  *
- * localStorage is extremely useful for saving user-specific information without needing to build server-side
- * infrastructure to support it. Let's imagine we're writing a Twitter search application and want to save the user's
- * searches locally so they can easily perform a saved search again later. We'd start by creating a Search model:
+ * We can get around this using a JsonP proxy. JsonP proxy injects a `<script>` tag into the DOM whenever an AJAX request
+ * would usually be made. Let's say we want to load data from http://domainB.com/users - the script tag that would be
+ * injected might look like this:
  *
- *     Ext.define('Search', {
+ *     <script src="http://domainB.com/users?callback=someCallback"></script>
+ *
+ * When we inject the tag above, the browser makes a request to that url and includes the response as if it was any
+ * other type of JavaScript include. By passing a callback in the url above, we're telling domainB's server that we want
+ * to be notified when the result comes in and that it should call our callback function with the data it sends back. So
+ * long as the server formats the response to look like this, everything will work:
+ *
+ *     someCallback({
+ *         users: [
+ *             {
+ *                 id: 1,
+ *                 name: "Ed Spencer",
+ *                 email: "ed@sencha.com"
+ *             }
+ *         ]
+ *     });
+ *
+ * As soon as the script finishes loading, the 'someCallback' function that we passed in the url is called with the JSON
+ * object that the server returned.
+ *
+ * JsonP proxy takes care of all of this automatically. It formats the url you pass, adding the callback parameter
+ * automatically. It even creates a temporary callback function, waits for it to be called and then puts the data into
+ * the Proxy making it look just like you loaded it through a normal {@link Ext.data.proxy.Ajax AjaxProxy}. Here's how
+ * we might set that up:
+ *
+ *     Ext.define('User', {
  *         extend: 'Ext.data.Model',
  *         config: {
- *             fields: ['id', 'query'],
- *             proxy: {
- *                 type: 'localstorage',
- *                 id  : 'twitter-Searches'
- *             }
+ *             fields: ['id', 'name', 'email']
  *         }
  *     });
  *
- * Our Search model contains just two fields - id and query - plus a Proxy definition. The only configuration we need to
- * pass to the LocalStorage proxy is an {@link #id}. This is important as it separates the Model data in this Proxy from
- * all others. The localStorage API puts all data into a single shared namespace, so by setting an id we enable
- * LocalStorageProxy to manage the saved Search data.
- *
- * Saving our data into localStorage is easy and would usually be done with a {@link Ext.data.Store Store}:
- *
- *     //our Store automatically picks up the LocalStorageProxy defined on the Search model
  *     var store = Ext.create('Ext.data.Store', {
- *         model: "Search"
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users'
+ *         }
  *     });
  *
- *     //loads any existing Search data from localStorage
  *     store.load();
  *
- *     //now add some Searches
- *     store.add({query: 'Sencha Touch'});
- *     store.add({query: 'Ext JS'});
+ * That's all we need to do - JsonP proxy takes care of the rest. In this case the Proxy will have injected a script tag
+ * like this:
  *
- *     //finally, save our Search data to localStorage
- *     store.sync();
+ *     <script src="http://domainB.com/users?callback=callback1"></script>
  *
- * The LocalStorageProxy automatically gives our new Searches an id when we call store.sync(). It encodes the Model data
- * and places it into localStorage. We can also save directly to localStorage, bypassing the Store altogether:
+ * # Customization
  *
- *     var search = Ext.create('Search', {query: 'Sencha Animator'});
+ * This script tag can be customized using the {@link #callbackKey} configuration. For example:
  *
- *     //uses the configured LocalStorageProxy to save the new Search to localStorage
- *     search.save();
+ *     var store = Ext.create('Ext.data.Store', {
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users',
+ *             callbackKey: 'theCallbackFunction'
+ *         }
+ *     });
  *
- * # Limitations
+ *     store.load();
  *
- * If this proxy is used in a browser where local storage is not supported, the constructor will throw an error. A local
- * storage proxy requires a unique ID which is used as a key in which all record data are stored in the local storage
- * object.
+ * Would inject a script tag like this:
  *
- * It's important to supply this unique ID as it cannot be reliably determined otherwise. If no id is provided but the
- * attached store has a storeId, the storeId will be used. If neither option is presented the proxy will throw an error.
+ *     <script src="http://domainB.com/users?theCallbackFunction=callback1"></script>
+ *
+ * # Implementing on the server side
+ *
+ * The remote server side needs to be configured to return data in this format. Here are suggestions for how you might
+ * achieve this using Java, PHP and ASP.net:
+ *
+ * Java:
+ *
+ *     boolean jsonP = false;
+ *     String cb = request.getParameter("callback");
+ *     if (cb != null) {
+ *         jsonP = true;
+ *         response.setContentType("text/javascript");
+ *     } else {
+ *         response.setContentType("application/x-json");
+ *     }
+ *     Writer out = response.getWriter();
+ *     if (jsonP) {
+ *         out.write(cb + "(");
+ *     }
+ *     out.print(dataBlock.toJsonString());
+ *     if (jsonP) {
+ *         out.write(");");
+ *     }
+ *
+ * PHP:
+ *
+ *     $callback = $_REQUEST['callback'];
+ *
+ *     // Create the output object.
+ *     $output = array('a' => 'Apple', 'b' => 'Banana');
+ *
+ *     //start output
+ *     if ($callback) {
+ *         header('Content-Type: text/javascript');
+ *         echo $callback . '(' . json_encode($output) . ');';
+ *     } else {
+ *         header('Content-Type: application/x-json');
+ *         echo json_encode($output);
+ *     }
+ *
+ * ASP.net:
+ *
+ *     String jsonString = "{success: true}";
+ *     String cb = Request.Params.Get("callback");
+ *     String responseString = "";
+ *     if (!String.IsNullOrEmpty(cb)) {
+ *         responseString = cb + "(" + jsonString + ")";
+ *     } else {
+ *         responseString = jsonString;
+ *     }
+ *     Response.Write(responseString);
  */
-Ext.define('Ext.data.proxy.LocalStorage', {
-    extend:  Ext.data.proxy.WebStorage ,
-    alias: 'proxy.localstorage',
-    alternateClassName: 'Ext.data.LocalStorageProxy',
+Ext.define('Ext.data.proxy.JsonP', {
+    extend:  Ext.data.proxy.Server ,
+    alternateClassName: 'Ext.data.ScriptTagProxy',
+    alias: ['proxy.jsonp', 'proxy.scripttag'],
+                                 
 
-    //inherit docs
-    getStorageObject: function() {
-        return window.localStorage;
+    config: {
+        defaultWriterType: 'base',
+
+        /**
+         * @cfg {String} callbackKey
+         * See {@link Ext.data.JsonP#callbackKey}.
+         * @accessor
+         */
+        callbackKey : 'callback',
+
+        /**
+         * @cfg {String} recordParam
+         * The param name to use when passing records to the server (e.g. 'records=someEncodedRecordString').
+         * @accessor
+         */
+        recordParam: 'records',
+
+        /**
+         * @cfg {Boolean} autoAppendParams
+         * `true` to automatically append the request's params to the generated url.
+         * @accessor
+         */
+        autoAppendParams: true
+    },
+
+    /**
+     * Performs the read request to the remote domain. JsonP proxy does not actually create an Ajax request,
+     * instead we write out a `<script>` tag based on the configuration of the internal Ext.data.Request object
+     * @param {Ext.data.Operation} operation The {@link Ext.data.Operation Operation} object to execute.
+     * @param {Function} callback A callback function to execute when the Operation has been completed.
+     * @param {Object} scope The scope to execute the callback in.
+     * @return {Object}
+     * @protected
+     */
+    doRequest: function(operation, callback, scope) {
+        var action = operation.getAction();
+        if (action !== 'read') {
+            Ext.Logger.error('JsonP proxies can only be used to read data.');
+        }
+
+        //generate the unique IDs for this request
+        var me      = this,
+            request = me.buildRequest(operation),
+            params  = request.getParams();
+
+        // apply JsonP proxy-specific attributes to the Request
+        request.setConfig({
+            callbackKey: me.getCallbackKey(),
+            timeout: me.getTimeout(),
+            scope: me,
+            callback: me.createRequestCallback(request, operation, callback, scope)
+        });
+
+        // Prevent doubling up because the params are already added to the url in buildUrl
+        if (me.getAutoAppendParams()) {
+            request.setParams({});
+        }
+
+        request.setJsonP(Ext.data.JsonP.request(request.getCurrentConfig()));
+
+        // Set the params back once we have made the request though
+        request.setParams(params);
+
+        operation.setStarted();
+
+        me.lastRequest = request;
+
+        return request;
+    },
+
+    /**
+     * @private
+     * Creates and returns the function that is called when the request has completed. The returned function
+     * should accept a Response object, which contains the response to be read by the configured Reader.
+     * The third argument is the callback that should be called after the request has been completed and the Reader has decoded
+     * the response. This callback will typically be the callback passed by a store, e.g. in proxy.read(operation, theCallback, scope)
+     * theCallback refers to the callback argument received by this function.
+     * See {@link #doRequest} for details.
+     * @param {Ext.data.Request} request The Request object.
+     * @param {Ext.data.Operation} operation The Operation being executed.
+     * @param {Function} callback The callback function to be called when the request completes. This is usually the callback
+     * passed to doRequest.
+     * @param {Object} scope The scope in which to execute the callback function.
+     * @return {Function} The callback function.
+     */
+    createRequestCallback: function(request, operation, callback, scope) {
+        var me = this;
+
+        return function(success, response, errorType) {
+            delete me.lastRequest;
+            me.processResponse(success, operation, request, response, callback, scope);
+        };
+    },
+
+    // @inheritdoc
+    setException: function(operation, response) {
+        operation.setException(operation.getRequest().getJsonP().errorType);
+    },
+
+
+    /**
+     * Generates a url based on a given Ext.data.Request object. Adds the params and callback function name to the url
+     * @param {Ext.data.Request} request The request object.
+     * @return {String} The url.
+     */
+    buildUrl: function(request) {
+        var me      = this,
+            url     = me.callParent(arguments),
+            params  = Ext.apply({}, request.getParams()),
+            filters = params.filters,
+            filter, i, value;
+
+        delete params.filters;
+
+        if (me.getAutoAppendParams()) {
+            url = Ext.urlAppend(url, Ext.Object.toQueryString(params));
+        }
+
+        if (filters && filters.length) {
+            for (i = 0; i < filters.length; i++) {
+                filter = filters[i];
+                value = filter.getValue();
+                if (value) {
+                    url = Ext.urlAppend(url, filter.getProperty() + "=" + value);
+                }
+            }
+        }
+
+        return url;
+    },
+
+    /**
+     * @inheritdoc
+     */
+    destroy: function() {
+        this.abort();
+        this.callParent(arguments);
+    },
+
+    /**
+     * Aborts the current server request if one is currently running.
+     */
+    abort: function() {
+        var lastRequest = this.lastRequest;
+        if (lastRequest) {
+            Ext.data.JsonP.abort(lastRequest.getJsonP());
+        }
     }
 });
 
@@ -63401,6 +63202,3014 @@ Ext.define('Ext.dataview.List', {
     }
 });
 
+/**
+ * Used in the {@link Ext.tab.Bar} component. This shouldn't be used directly, instead use
+ * {@link Ext.tab.Bar} or {@link Ext.tab.Panel}.
+ * @private
+ */
+Ext.define('Ext.tab.Tab', {
+    extend:  Ext.Button ,
+    xtype: 'tab',
+    alternateClassName: 'Ext.Tab',
+
+    // @private
+    isTab: true,
+
+    config: {
+        /**
+         * @cfg baseCls
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'tab',
+
+        /**
+         * @cfg {String} pressedCls
+         * The CSS class to be applied to a Tab when it is pressed.
+         * Providing your own CSS for this class enables you to customize the pressed state.
+         * @accessor
+         */
+        pressedCls: Ext.baseCSSPrefix + 'tab-pressed',
+
+        /**
+         * @cfg {String} activeCls
+         * The CSS class to be applied to a Tab when it is active.
+         * Providing your own CSS for this class enables you to customize the active state.
+         * @accessor
+         */
+        activeCls: Ext.baseCSSPrefix + 'tab-active',
+
+        /**
+         * @cfg {Boolean} active
+         * Set this to `true` to have the tab be active by default.
+         * @accessor
+         */
+        active: false,
+
+        /**
+         * @cfg {String} title
+         * The title of the card that this tab is bound to.
+         * @accessor
+         */
+        title: '&nbsp;'
+    },
+
+    updateIconCls : function(newCls, oldCls) {
+        this.callParent([newCls, oldCls]);
+
+        if (oldCls) {
+            this.removeCls('x-tab-icon');
+        }
+
+        if (newCls) {
+            this.addCls('x-tab-icon');
+        }
+    },
+
+    /**
+     * @event activate
+     * Fires when a tab is activated
+     * @param {Ext.tab.Tab} this
+     */
+
+    /**
+     * @event deactivate
+     * Fires when a tab is deactivated
+     * @param {Ext.tab.Tab} this
+     */
+
+    updateTitle: function(title) {
+        this.setText(title);
+    },
+
+    updateActive: function(active, oldActive) {
+        var activeCls = this.getActiveCls();
+        if (active && !oldActive) {
+            this.element.addCls(activeCls);
+            this.fireEvent('activate', this);
+        } else if (oldActive) {
+            this.element.removeCls(activeCls);
+            this.fireEvent('deactivate', this);
+        }
+    }
+}, function() {
+    this.override({
+        activate: function() {
+            this.setActive(true);
+        },
+
+        deactivate: function() {
+            this.setActive(false);
+        }
+    });
+});
+
+/**
+ * Ext.tab.Bar is used internally by {@link Ext.tab.Panel} to create the bar of tabs that appears at the top of the tab
+ * panel. It's unusual to use it directly, instead see the {@link Ext.tab.Panel tab panel docs} for usage instructions.
+ *
+ * Used in the {@link Ext.tab.Panel} component to display {@link Ext.tab.Tab} components.
+ *
+ * @private
+ */
+Ext.define('Ext.tab.Bar', {
+    extend:  Ext.Toolbar ,
+    alternateClassName: 'Ext.TabBar',
+    xtype : 'tabbar',
+
+                              
+
+    config: {
+        /**
+         * @cfg baseCls
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'tabbar',
+
+        // @private
+        defaultType: 'tab',
+
+        // @private
+        layout: {
+            type: 'hbox',
+            align: 'middle'
+        }
+    },
+
+    eventedConfig: {
+        /**
+         * @cfg {Number/String/Ext.Component} activeTab
+         * The initially activated tab. Can be specified as numeric index,
+         * component ID or as the component instance itself.
+         * @accessor
+         * @evented
+         */
+        activeTab: null
+    },
+
+    /**
+     * @event tabchange
+     * Fired when active tab changes.
+     * @param {Ext.tab.Bar} this
+     * @param {Ext.tab.Tab} newTab The new Tab
+     * @param {Ext.tab.Tab} oldTab The old Tab
+     */
+
+    platformConfig: [{
+        theme: ['Blackberry', 'CupertinoClassic', 'MountainView'],
+        defaults: {
+            flex: 1
+        }
+    }],
+
+    initialize: function() {
+        var me = this;
+        me.callParent();
+
+        me.on({
+            tap: 'onTabTap',
+
+            delegate: '> tab',
+            scope   : me
+        });
+    },
+
+    // @private
+    onTabTap: function(tab) {
+        this.setActiveTab(tab);
+    },
+
+    /**
+     * @private
+     */
+    applyActiveTab: function(newActiveTab, oldActiveTab) {
+        if (!newActiveTab && newActiveTab !== 0) {
+            return;
+        }
+
+        var newTabInstance = this.parseActiveTab(newActiveTab);
+
+        if (!newTabInstance) {
+            if (oldActiveTab) {
+                Ext.Logger.warn('Trying to set a non-existent activeTab');
+            }
+            return;
+        }
+        return newTabInstance;
+    },
+
+    /**
+     * @private
+     * Default pack to center when docked to the bottom, otherwise default pack to left
+     */
+    doSetDocked: function(newDocked) {
+        var layout = this.getLayout(),
+            initialConfig = this.getInitialConfig(),
+            pack;
+
+        if (!initialConfig.layout || !initialConfig.layout.pack) {
+            pack = (newDocked == 'bottom') ? 'center' : 'left';
+            //layout isn't guaranteed to be instantiated so must test
+            if (layout.isLayout) {
+                layout.setPack(pack);
+            } else {
+                layout.pack = (layout && layout.pack) ? layout.pack : pack;
+            }
+        }
+
+		this.callParent(arguments);
+    },
+
+    /**
+     * @private
+     * Sets the active tab
+     */
+    doSetActiveTab: function(newTab, oldTab) {
+        if (newTab) {
+            newTab.setActive(true);
+        }
+
+        //Check if the parent is present, if not it is destroyed
+        if (oldTab && oldTab.parent) {
+            oldTab.setActive(false);
+        }
+    },
+
+    /**
+     * @private
+     * Parses the active tab, which can be a number or string
+     */
+    parseActiveTab: function(tab) {
+        //we need to call getItems to initialize the items, otherwise they will not exist yet.
+        if (typeof tab == 'number') {
+			return this.getItems().items[tab];
+        }
+        else if (typeof tab == 'string') {
+            tab = Ext.getCmp(tab);
+        }
+        return tab;
+    }
+});
+
+/**
+ * @aside guide tabs
+ * @aside video tabs-toolbars
+ * @aside example tabs
+ * @aside example tabs-bottom
+ *
+ * Tab Panels are a great way to allow the user to switch between several pages that are all full screen. Each
+ * Component in the Tab Panel gets its own Tab, which shows the Component when tapped on. Tabs can be positioned at
+ * the top or the bottom of the Tab Panel, and can optionally accept title and icon configurations.
+ *
+ * Here's how we can set up a simple Tab Panel with tabs at the bottom. Use the controls at the top left of the example
+ * to toggle between code mode and live preview mode (you can also edit the code and see your changes in the live
+ * preview):
+ *
+ *     @example miniphone preview
+ *     Ext.create('Ext.TabPanel', {
+ *         fullscreen: true,
+ *         tabBarPosition: 'bottom',
+ *
+ *         defaults: {
+ *             styleHtmlContent: true
+ *         },
+ *
+ *         items: [
+ *             {
+ *                 title: 'Home',
+ *                 iconCls: 'home',
+ *                 html: 'Home Screen'
+ *             },
+ *             {
+ *                 title: 'Contact',
+ *                 iconCls: 'user',
+ *                 html: 'Contact Screen'
+ *             }
+ *         ]
+ *     });
+ * One tab was created for each of the {@link Ext.Panel panels} defined in the items array. Each tab automatically uses
+ * the title and icon defined on the item configuration, and switches to that item when tapped on. We can also position
+ * the tab bar at the top, which makes our Tab Panel look like this:
+ *
+ *     @example miniphone preview
+ *     Ext.create('Ext.TabPanel', {
+ *         fullscreen: true,
+ *
+ *         defaults: {
+ *             styleHtmlContent: true
+ *         },
+ *
+ *         items: [
+ *             {
+ *                 title: 'Home',
+ *                 html: 'Home Screen'
+ *             },
+ *             {
+ *                 title: 'Contact',
+ *                 html: 'Contact Screen'
+ *             }
+ *         ]
+ *     });
+ *
+ */
+Ext.define('Ext.tab.Panel', {
+    extend:  Ext.Container ,
+    xtype : 'tabpanel',
+    alternateClassName: 'Ext.TabPanel',
+
+                              
+
+    config: {
+        /**
+         * @cfg {String} ui
+         * Sets the UI of this component.
+         * Available values are: `light` and `dark`.
+         * @accessor
+         */
+        ui: 'dark',
+
+        /**
+         * @cfg {Object} tabBar
+         * An Ext.tab.Bar configuration.
+         * @accessor
+         */
+        tabBar: true,
+
+        /**
+         * @cfg {String} tabBarPosition
+         * The docked position for the {@link #tabBar} instance.
+         * Possible values are 'top' and 'bottom'.
+         * @accessor
+         */
+        tabBarPosition: 'top',
+
+        /**
+         * @cfg layout
+         * @inheritdoc
+         */
+        layout: {
+            type: 'card',
+            animation: {
+                type: 'slide',
+                direction: 'left'
+            }
+        },
+
+        /**
+         * @cfg cls
+         * @inheritdoc
+         */
+        cls: Ext.baseCSSPrefix + 'tabpanel'
+
+        /**
+         * @cfg {Boolean/String/Object} scrollable
+         * @accessor
+         * @hide
+         */
+
+        /**
+         * @cfg {Boolean/String/Object} scroll
+         * @hide
+         */
+    },
+
+    initialize: function() {
+        this.callParent();
+
+        this.on({
+            order: 'before',
+            activetabchange: 'doTabChange',
+            delegate: '> tabbar',
+            scope   : this
+        });
+
+        this.on({
+            disabledchange: 'onItemDisabledChange',
+            delegate: '> component',
+            scope   : this
+        });
+    },
+
+    platformConfig: [{
+        theme: ['Blackberry'],
+        tabBarPosition: 'bottom'
+    }],
+
+    /**
+     * Tab panels should not be scrollable. Instead, you should add scrollable to any item that
+     * you want to scroll.
+     * @private
+     */
+    applyScrollable: function() {
+        return false;
+    },
+
+    /**
+     * Updates the Ui for this component and the {@link #tabBar}.
+     */
+    updateUi: function(newUi, oldUi) {
+        this.callParent(arguments);
+
+        if (this.initialized) {
+            this.getTabBar().setUi(newUi);
+        }
+    },
+
+    /**
+     * @private
+     */
+    doSetActiveItem: function(newActiveItem, oldActiveItem) {
+        if (newActiveItem) {
+            var items = this.getInnerItems(),
+                oldIndex = items.indexOf(oldActiveItem),
+                newIndex = items.indexOf(newActiveItem),
+                reverse = oldIndex > newIndex,
+                animation = this.getLayout().getAnimation(),
+                tabBar = this.getTabBar(),
+                oldTab = tabBar.parseActiveTab(oldIndex),
+                newTab = tabBar.parseActiveTab(newIndex);
+
+            if (animation && animation.setReverse) {
+                animation.setReverse(reverse);
+            }
+
+            this.callParent(arguments);
+
+            if (newIndex != -1) {
+                this.forcedChange = true;
+                tabBar.setActiveTab(newIndex);
+                this.forcedChange = false;
+
+                if (oldTab) {
+                    oldTab.setActive(false);
+                }
+
+                if (newTab) {
+                    newTab.setActive(true);
+                }
+            }
+        }
+    },
+
+    /**
+     * Updates this container with the new active item.
+     * @param {Object} tabBar
+     * @param {Object} newTab
+     * @return {Boolean}
+     */
+    doTabChange: function(tabBar, newTab) {
+        var oldActiveItem = this.getActiveItem(),
+            newActiveItem;
+
+        this.setActiveItem(tabBar.indexOf(newTab));
+        newActiveItem = this.getActiveItem();
+        return this.forcedChange || oldActiveItem !== newActiveItem;
+    },
+
+    /**
+     * Creates a new {@link Ext.tab.Bar} instance using {@link Ext#factory}.
+     * @param {Object} config
+     * @return {Object}
+     * @private
+     */
+    applyTabBar: function(config) {
+        if (config === true) {
+            config = {};
+        }
+
+        if (config) {
+            Ext.applyIf(config, {
+                ui: this.getUi(),
+                docked: this.getTabBarPosition()
+            });
+        }
+
+        return Ext.factory(config, Ext.tab.Bar, this.getTabBar());
+    },
+
+    /**
+     * Adds the new {@link Ext.tab.Bar} instance into this container.
+     * @private
+     */
+    updateTabBar: function(newTabBar) {
+        if (newTabBar) {
+            this.add(newTabBar);
+            this.setTabBarPosition(newTabBar.getDocked());
+        }
+    },
+
+    /**
+     * Updates the docked position of the {@link #tabBar}.
+     * @private
+     */
+    updateTabBarPosition: function(position) {
+        var tabBar = this.getTabBar();
+        if (tabBar) {
+            tabBar.setDocked(position);
+        }
+    },
+
+    onItemAdd: function(card) {
+        var me = this;
+
+        if (!card.isInnerItem()) {
+            return me.callParent(arguments);
+        }
+
+        var tabBar = me.getTabBar(),
+            initialConfig = card.getInitialConfig(),
+            tabConfig = initialConfig.tab || {},
+            tabTitle = (card.getTitle) ? card.getTitle() : initialConfig.title,
+            tabIconCls = (card.getIconCls) ? card.getIconCls() : initialConfig.iconCls,
+            tabHidden = (card.getHidden) ? card.getHidden() : initialConfig.hidden,
+            tabDisabled = (card.getDisabled) ? card.getDisabled() : initialConfig.disabled,
+            tabBadgeText = (card.getBadgeText) ? card.getBadgeText() : initialConfig.badgeText,
+            innerItems = me.getInnerItems(),
+            index = innerItems.indexOf(card),
+            tabs = tabBar.getItems(),
+            activeTab = tabBar.getActiveTab(),
+            currentTabInstance = (tabs.length >= innerItems.length) && tabs.getAt(index),
+            tabInstance;
+
+        if (tabTitle && !tabConfig.title) {
+            tabConfig.title = tabTitle;
+        }
+
+        if (tabIconCls && !tabConfig.iconCls) {
+            tabConfig.iconCls = tabIconCls;
+        }
+
+        if (tabHidden && !tabConfig.hidden) {
+            tabConfig.hidden = tabHidden;
+        }
+
+        if (tabDisabled && !tabConfig.disabled) {
+            tabConfig.disabled = tabDisabled;
+        }
+
+        if (tabBadgeText && !tabConfig.badgeText) {
+            tabConfig.badgeText = tabBadgeText;
+        }
+
+        if (!currentTabInstance && !tabConfig.title && !tabConfig.iconCls) {
+            if (!tabConfig.title && !tabConfig.iconCls) {
+                Ext.Logger.error('Adding a card to a tab container without specifying any tab configuration');
+            }
+        }
+
+        tabInstance = Ext.factory(tabConfig, Ext.tab.Tab, currentTabInstance);
+
+        if (!currentTabInstance) {
+            tabBar.insert(index, tabInstance);
+        }
+
+        card.tab = tabInstance;
+
+        me.callParent(arguments);
+
+        if (!activeTab && activeTab !== 0) {
+            tabBar.setActiveTab(tabBar.getActiveItem());
+        }
+    },
+
+    /**
+     * If an item gets enabled/disabled and it has an tab, we should also enable/disable that tab
+     * @private
+     */
+    onItemDisabledChange: function(item, newDisabled) {
+        if (item && item.tab) {
+            item.tab.setDisabled(newDisabled);
+        }
+    },
+
+    // @private
+    onItemRemove: function(item, index) {
+        this.getTabBar().remove(item.tab, this.getAutoDestroy());
+
+        this.callParent(arguments);
+    }
+}, function() {
+});
+
+/**
+ * A AccordionListItem is a container for Ext.ux.AccordionList with
+ * useComponent: true.
+ *
+ * The following example shows how to configure and update sub-component items
+ * in a list:
+ *
+ *  Ext.define('AccordionListExample.view.ListItem', {
+ *      extend: 'Ext.ux.AccordionListItem',
+ *      xtype : 'examplelistitem',
+ *
+ *      config: {
+ *          layout: {
+ *              type: 'vbox'
+ *          },
+ *
+ *          text: {
+ *          },
+ *          button: {
+ *              iconMask: true,
+ *              docked: 'right',
+ *          },
+ *          message: {
+ *              docked: 'bottom',
+ *              label: 'message'
+ *          },
+ *          limit: {
+ *              docked: 'top',
+ *              label: 'limit'
+ *          },
+ *
+ *          headerDataMap: {
+ *              getText: {
+ *                  setHtml: 'text'
+ *              },
+ *              getButton: {
+ *                  setIconCls: 'icon'
+ *              }
+ *          },
+ *
+ *          contentDataMap: {
+ *              getLimit: {
+ *                  setValue: 'limit'
+ *              },
+ *              getMessage: {
+ *                  setValue: 'message'
+ *              }
+ *          }
+ *      },
+ *
+ *      applyText: function(config) {
+ *          return Ext.factory(config, Ext.Component);
+ *      },
+ *
+ *      updateText: function(newText) {
+ *          if (newText) {
+ *              this.add(newText);
+ *          }
+ *      },
+ *
+ *      applyButton: function(config) {
+ *          return Ext.factory(config, Ext.Button);
+ *      },
+ *
+ *      updateButton: function(newButton) {
+ *          if (newButton) {
+ *              this.add(newButton);
+ *          }
+ *      },
+ *
+ *      applyLimit: function(config) {
+ *          return Ext.factory(config, Ext.field.DatePicker);
+ *      },
+ *
+ *      updateLimit: function(newDay) {
+ *          if (newDay) {
+ *              this.add(newDay);
+ *          }
+ *      },
+ *
+ *      applyMessage: function(config) {
+ *          return Ext.factory(config, Ext.field.TextArea);
+ *      },
+ *
+ *      updateMessage: function(newMessage) {
+ *          if (newMessage) {
+ *              this.add(newMessage);
+ *          }
+ *      }
+ *  });
+ *
+ */
+Ext.define('Ext.ux.AccordionListItem', {
+    extend:  Ext.dataview.component.ListItem ,
+    xtype : 'accordionlistitem',
+
+    config: {
+        baseCls: 'accordion-list-item',  // Do not override this property!
+
+        /**
+         * @cfg {String/Object} layout
+         * Default layout config.
+         */
+        layout: {
+            type: 'hbox'
+        },
+
+        /**
+         * @cfg {Boolean} indent
+         * Whether to indent child items.
+         */
+        indent: false,
+
+        /**
+         * @cfg {Object} headerDataMap
+         * Defines header item's dataMap
+         */
+        headerDataMap: {},
+
+        /**
+         * @cfg {String/Object} layout
+         * Defines content item's dataMap
+         */
+        contentDataMap: {},
+
+        // @private
+        itemMark: {
+            docked: 'left'
+        }
+    },
+
+    /**
+     * @param  {Object} config
+     */
+    applyItemMark: function(config) {
+        return Ext.factory(config, Ext.Component);
+    },
+
+    /**
+     * @param  {Ext.Component} newItemMark
+     */
+    updateItemMark: function(newItemMark) {
+        if (newItemMark) {
+            this.add(newItemMark);
+        }
+    },
+
+    /**
+     * @override
+     * @param newRecord
+     */
+    updateRecord: function(record) {
+        var me = this,
+            dataview = me.dataview || this.getDataview(),
+            data = record && dataview.prepareData(record.getData(true), dataview.getStore().indexOf(record), record),
+            body = this.getBody(),
+            dataMap;
+
+        me._record = record;
+
+        var leaf = record && record.isLeaf(),
+            expanded = record && record.isExpanded(),
+            depth = record ? record.getDepth() : 0;
+
+        if (leaf) {
+            dataMap = me.getContentDataMap();
+        }
+        else {
+            dataMap = me.getHeaderDataMap();
+        }
+
+        me.doMapData(dataMap, data, body);
+        me.doUpdateItemMark(expanded, leaf);
+        me.toggle(leaf);
+
+        /**
+         * @event updatedata
+         * Fires whenever the data of the DataItem is updated.
+         * @param {Ext.dataview.component.DataItem} this The DataItem instance.
+         * @param {Object} newData The new data.
+         */
+        me.fireEvent('updatedata', me, data);
+    },
+
+    /**
+     * @private
+     * @param  {Boolean} expanded
+     * @param  {Boolean} leaf
+     */
+    doUpdateItemMark: function (expanded, leaf) {
+        var me = this,
+            itemMark = me.getItemMark();
+
+        if (Ext.isEmpty(expanded)) {
+            return;
+        }
+
+        var downMark = '<div class="down"></down>',
+            rightMark = '<div class="right"></div>';
+
+        itemMark.setHtml(leaf ? '' : expanded ? downMark : rightMark);
+
+        if (me.getIndent()) {
+            itemMark.setStyle('padding-left:' + depth + 'em;');
+        }
+    },
+
+    /**
+     * @private
+     * @param  {Boolean} leaf
+     */
+    toggle: function (leaf) {
+        var me = this;
+        me.doHiddenComponents(me.getHeaderDataMap(), leaf);
+        me.doHiddenComponents(me.getContentDataMap(), !leaf);
+    },
+
+    /**
+     * @private
+     * @param  {Object} map
+     * @param  {Boolean} hidden
+     */
+    doHiddenComponents: function (map, hidden) {
+        var me = this;
+        Ext.Object.each(map, function (key, value) {
+            var component = me[key]();
+            if (component) {
+                component.setHidden(hidden);
+            }
+        });
+    }
+
+});
+
+/**
+ *  {@link Ext.ux.AccordionList} is a subclass of {@link Ext.Container}
+ *  Collapsible List with using Ext.data.TreeStore.
+ *  You can expand and collapse contents by header item tap.
+ *  Also it can nested infinity.
+ *
+ *  @author Shinobu Kawano <http://kawanoshinobu.com>
+ *
+ *  Simple example:
+ *
+ *     @example miniphone preview
+ *      var data = {
+ *         "items" : [{
+ *               "text" : "Today",
+ *               "items" : [{
+ *                           "text" : "Eat",
+ *                           "leaf" : true
+ *                       }, {
+ *                           "text" : "Sleep",
+ *                           "leaf" : true
+ *                       }, {
+ *                           "text" : "Drinking",
+ *                           "leaf" : true
+ *                       }]
+ *           }, {
+ *               "text" : "Tomorrow",
+ *               "items" : [{
+ *                           "text" : "Watch TV",
+ *                           "leaf" : true
+ *                       }, {
+ *                           "text" : "Watch Video",
+ *                           "leaf" : true
+ *                       }]
+ *           }, {
+ *               "text" : "This week",
+ *               "items" : [{
+ *                           "text" : "Shopping",
+ *                           "leaf" : true
+ *                       }]
+ *           }, {
+ *               "text" : "Later",
+ *               "items" : [{
+ *                           "text" : "Eat",
+ *                           "leaf" : true
+ *                       }, {
+ *                           "text" : "Sleep",
+ *                           "leaf" : true
+ *                       }, {
+ *                           "text" : "Drinking",
+ *                           "leaf" : true
+ *                       }]
+ *           }]
+ *      };
+ *
+ *      Ext.define('Task', {
+ *          extend: 'Ext.data.Model',
+ *          config: {
+ *              fields: [{
+ *                  name: 'text',
+ *                  type: 'string'
+ *              }]
+ *          }
+ *      });
+ *
+ *      var store = Ext.create('Ext.data.TreeStore', {
+ *          model: 'Task',
+ *          defaultRootProperty: 'items',
+ *          root: data
+ *      });
+ *
+ *      var accordionList = Ext.create('Ext.ux.AccordionList', {
+ *          fullscreen: true,
+ *          store: store
+ *      });
+ *
+ */
+Ext.define('Ext.ux.AccordionList', {
+    extend:  Ext.Container ,
+    xtype: 'accordionlist',
+    alternateClassName: 'Ext.AccordionList',
+
+               
+                            
+                                  
+      
+
+    config: {
+        /**
+         * @cfg {String/String[]} cls
+         * The CSS class to add to this component's element.
+         */
+        cls: Ext.baseCSSPrefix + 'accordion-list',
+
+        /**
+         * @cfg {String} headerItemCls
+         * The CSS class to add to this header item's element.
+         */
+        headerItemCls: Ext.baseCSSPrefix + 'accordion-list-header',
+
+        /**
+         * @cfg {String} contentItemCls
+         * The CSS class to add to this header item's element.
+         */
+        contentItemCls: Ext.baseCSSPrefix + 'accordion-list-content',
+
+        /**
+         * @cfg {String/Object} layout
+         * Default layout config.
+         */
+        layout: {
+            type: 'fit'
+        },
+
+        /**
+         * @cfg {Ext.data.TreeStore/Object} store
+         * Store instanse
+         */
+        store: null,
+
+        /**
+         * @cfg {String} displayField
+         * Defaults template's display field.
+         */
+        displayField: 'text',
+
+        /**
+         * @cfg {Boolean} scrollable
+         * List's default listScrollable config.
+         */
+        listScrollable: true,
+
+        /**
+         * @cfg {String} headerItemTpl
+         * Header item's html template.
+         */
+        headerItemTpl: [
+            '<tpl if="this.isExpanded(values)">',
+                '{0}',
+            '<tpl else>',
+                '{1}',
+            '</tpl>'
+        ].join(''),
+
+        /**
+         * @cfg {String} headerCloseTpl
+         * Header item's html template which it closing.
+         */
+        headerCloseTpl: '<div class="right"></div><div>{0}</div>',
+
+        /**
+         * @cfg {String} headerOpenTpl
+         * Header item's html template which it opening.
+         */
+        headerOpenTpl: '<div class="down"></div><div>{0}</div>',
+
+        /**
+         * @cfg {String} contentItemTpl
+         * Content item's html template.
+         */
+        contentItemTpl: '{0}',
+
+        /**
+         * @cfg {String} countTpl
+         * Content item count html template.
+         */
+        countTpl: [
+            '<div class="', Ext.baseCSSPrefix, 'accordion-list-count" ',
+                 'style="position:absolute; right:0; margin-right: 1em;">',
+                '{0}',
+            '</div>'].join(''),
+
+        /**
+         * @cfg {Boolean} defaultExpanded
+         * Whether items all expanded or not.
+         */
+        defaultExpanded: false,
+
+        /**
+         * @cfg {Boolean} useSelectedHighlights
+         * Whether selected items highlights or not.
+         */
+        useSelectedHighlights: true,
+
+        /**
+         * @cfg {Boolean} singleMode
+         * Whether to only show one expanded list at a time.
+         */
+        singleMode: false,
+
+        /**
+         * @cfg {Boolean} animation
+         * Whether to use animation when item is expanded.
+         */
+        animation: false,
+
+        /**
+         * @cfg {Number} animationDuration
+         * Animation duration time (ms). This is used when item expand.
+         */
+        animationDuration: 800,
+
+        /**
+         * @cfg {Boolean} showCount
+         * Whether to show item's count in the header.
+         */
+        showCount: false,
+
+        /**
+         * @private
+         */
+        list: null,
+
+        /**
+         * @cfg {Object} listConfig
+         * Sets list's config.
+         */
+        listConfig: {},
+
+        /**
+         * @cfg {Boolean} indent
+         * Whether to indent child items.
+         */
+        indent: false,
+
+        /**
+         * @cfg {Boolean} indent
+         * Flag the use a component based DataView implementation.
+         */
+        useComponents: false,
+
+        /**
+         * @cfg {String} indent
+         * The xtype used for the component based DataView.
+         * You must specify accordionlistitem's sub class.
+         */
+        defaultType: 'accordionlistitem',
+
+        /**
+         * @cfg {Boolean/Object} indexBar
+         * `true` to render an alphabet IndexBar docked on the right.
+         * This can also be a config object that will be passed to {@link Ext.IndexBar}.
+         */
+         indexBar: null
+    },
+
+    /**
+     * @protected
+     */
+    initialize: function() {
+        var me = this;
+        me.doInitialize();
+        me.callParent(arguments);
+    },
+
+    /**
+     * @private
+     */
+    doInitialize: function() {
+        var me = this;
+        if (me.getDefaultExpanded()) {
+            me.doAllExpand();
+        }
+    },
+
+    /**
+     * @protected
+     */
+    applyStore: function(newStore) {
+        return this.patchStore(newStore);
+    },
+
+    /**
+     * @protected
+     */
+    applyDisplayField: function(newField) {
+        return '{' + newField + '}';
+    },
+
+    /**
+     * @protected
+     */
+    updateStore: function(newStore, oldStore) {
+        var me = this,
+            list = me.getList();
+
+        if (!list) {
+            list = me.readyList();
+        }
+
+        newStore.on('load', me.onLoadStore, me);
+        list.setStore(newStore);
+    },
+
+    /**
+     * @private
+     * @return {Ext.dataview.List}
+     */
+    readyList: function() {
+        var me = this;
+        var config = me.makeListConfig();
+
+        list = Ext.create('Ext.dataview.List', config);
+
+        me.applyMoreListSetting(list);
+        me.setList(list);
+        me.add(list);
+        return list;
+    },
+
+    /**
+     * @private
+     * @return {Object}
+     */
+    makeListConfig: function() {
+        var me = this,
+            defaultConfig = {
+                scrollToTopOnRefresh: false
+            },
+            config;
+
+        if (me.getUseComponents() === false) {
+            config = me.makeElementListConfig(defaultConfig);
+        }
+        else {
+            config = me.makeComponentListConfig(defaultConfig);
+        }
+
+        if (me.getAnimation()) {
+            Ext.Object.merge(config, {
+                itemHeight: 'auto'
+            });
+        }
+
+        var indexBar = me.getIndexBar();
+        if (!Ext.isEmpty(indexBar)) {
+            Ext.Object.merge(config, {
+                indexBar: indexBar,
+                grouped : true
+            });
+        }
+
+        Ext.Object.merge(config, me.getListConfig());
+
+        return config;
+    },
+
+    /**
+     * @private
+     * @param  {Object} config
+     * @return {Object}
+     */
+    makeElementListConfig: function(config) {
+        var me = this;
+
+        Ext.Object.merge(config, {
+            itemTpl: new Ext.XTemplate(
+                '<tpl if="leaf">',
+                    me.makeContentTemplate(),
+                '<tpl else>',
+                    me.makeHeaderTemplate(),
+                    me.getShowCount() ? me.makeCountTpl() : '',
+                '</tpl>',
+                {
+                    isExpanded: function(values) {
+                        return values.expanded;
+                    }
+                }
+            ),
+            useSimpleItems: true
+        });
+
+        return config;
+    },
+
+    /**
+     * @private
+     * @param  {Object} config
+     * @return {Object}
+     */
+    makeComponentListConfig: function(config) {
+        var me = this;
+
+        Ext.Object.merge(config, {
+            useComponents: true,
+            defaultType: me.getDefaultType(),
+            itemTpl: '',
+            useSimpleItems: false
+        });
+
+        return config;
+    },
+
+    /**
+     * @private
+     * @param  {Ext.dataview.List} list
+     */
+    applyMoreListSetting: function(list) {
+        var me = this;
+
+        if (me.getUseSelectedHighlights() === false) {
+            list.setSelectedCls('');
+        }
+
+        if (me.getUseComponents()) {
+            me.applyItemTapPatch(list);
+        }
+
+        list.on('itemtap', me.onItemTap, me);
+        list.on('refresh', me.onListRefresh, me);
+        list.on('itemindexchange', me.onItemIndexChange, me);
+        list.setScrollable(me.getListScrollable());
+    },
+
+    /**
+     * @private
+     * @param  {Ext.dataview.List} list
+     */
+    applyItemTapPatch: function (list) {
+        var parseEvent = function (e) {
+            var me = this,
+                target = Ext.fly(e.getTarget()).findParent('.' + 'accordion-list-item', 8),
+                item = Ext.getCmp(target.id);
+
+            return [me, item, item.$dataIndex, e];
+        };
+        list.parseEvent = parseEvent;
+
+        list.on({
+            element: 'element',
+            delegate: '.accordion-list-item',
+            tap: list.onItemTap
+        });
+    },
+
+    /**
+     * @private
+     * @param  {Ext.data.Store} store
+     * @param  {Ext.data.Model} records
+     * @param  {Boolean} successful
+     */
+    onLoadStore: function(store, records, successful) {
+        if (successful === false) {
+            return;
+        }
+        this.setCountToRecords(records);
+    },
+
+    /**
+     * @private
+     * @param  {Ext.data.Model} records
+     */
+    setCountToRecords: function(records) {
+        var me = this;
+
+        (records || []).forEach(function setCount(record) {
+            if (record.hasChildNodes()) {
+                record.set('cnt', record.childNodes.length);
+                record.childNodes.forEach(setCount);
+            }
+            else {
+                record.set('cnt', 0);
+            }
+        });
+    },
+
+    /**
+     * @private
+     * @return {String}
+     */
+    makeHeaderTemplate: function() {
+        var me = this,
+            displayField = me.getDisplayField(),
+            openTpl = Ext.String.format(me.getHeaderOpenTpl(), displayField),
+            closeTpl = Ext.String.format(me.getHeaderCloseTpl(), displayField);
+        return Ext.String.format(me.getHeaderItemTpl(), openTpl, closeTpl);
+    },
+
+    /**
+     * @private
+     * @return {String}
+     */
+    makeContentTemplate: function() {
+        var me = this,
+            displayField = me.getDisplayField();
+        return Ext.String.format(me.getContentItemTpl(), displayField);
+    },
+
+    /**
+     * @private
+     * @return {String}
+     */
+    makeCountTpl: function() {
+        return Ext.String.format(this.getCountTpl(), '{cnt}');
+    },
+
+     /**
+     * @private
+     */
+     updateListScrollable: function(newListScrollable, oldListScrollable) {
+          var list = this.getList();
+          if (list) {
+              list.setScrollable(newListScrollable);
+          }
+     },
+
+    /**
+     * Loads data into the store.
+     */
+    load: function() {
+        this.getStore().load();
+    },
+
+    /**
+     * Remove all items from the store.
+     */
+    removeAllItem: function() {
+        this.getStore().removeAll();
+    },
+
+    /**
+     * Gets the number of cached records.
+     * @return {Number}
+     */
+    getCount: function() {
+        var store = this.getStore();
+        return Ext.isEmpty(store) ? 0 : store.getCount();
+    },
+
+    /**
+     * Gets the number of all records.
+     * @return {Number}
+     */
+    getAllCount: function() {
+        var store = this.getStore();
+        return Ext.isEmpty(store) ? 0 : store.getAllCount();
+    },
+
+    /**
+     * Expand all of contents.
+     */
+    doAllExpand: function() {
+        var me = this;
+        me.doAll(function expand(node) {
+            if (me.getAnimation()) {
+                me.addListExpandListeners(node);
+            }
+            node.expand();
+            if (!node.isLeaf()) {
+                node.childNodes.forEach(expand, me);
+            }
+        });
+    },
+
+    /**
+     * Collapse all of contents.
+     */
+    doAllCollapse: function() {
+        var me = this;
+        me.doAll(function collapse(node) {
+            node.collapse();
+            if (!node.isLeaf()) {
+                node.childNodes.forEach(collapse, me);
+            }
+        });
+    },
+
+    /**
+     * Collapse all of contents with single mode.
+     * @param  {Number} depth
+     */
+    doAllCollapseWithSingleMode: function(depth) {
+        var me = this;
+        me.doAll(function collapse(node) {
+            if (node.data.depth === depth) {
+                node.collapse();
+            }
+        });
+    },
+
+    /**
+     * @private
+     * @param  {Function} updater
+     */
+    doAll: function(updater) {
+        var me = this,
+            list = me.getList(),
+            store = list.getStore();
+        store.each(updater, me);
+    },
+
+    /**
+     * @private
+     * @param  {Ext.dataview.List} list
+     */
+    onListRefresh: function(list) {
+        var me = this,
+            items = list.listItems,
+            ln = items.length,
+            headerCls = me.getHeaderItemCls(),
+            contentCls = me.getContentItemCls(),
+            i, item, record, isLeaf;
+
+        for (i = 0; i < ln; i++) {
+            item = items[i];
+            record = item.getRecord();
+            if (!Ext.isEmpty(record)) {
+                isLeaf = record.get('leaf');
+                item.removeCls(isLeaf ? headerCls : contentCls);
+                item.addCls(isLeaf ? contentCls : headerCls);
+            }
+        }
+
+        if (me.getIndent()) {
+            me.doIndent();
+        }
+    },
+
+    /**
+     * Called when an list item has been tapped
+     * @param  {Ext.List} list The subList the item is on
+     * @param  {Number} index The id of the item tapped
+     * @param  {Ext.Element} target The list item tapped
+     * @param  {Ext.data.Record} record The record whichw as tapped
+     * @param  {Ext.event.Event} e The event
+     */
+    onItemTap: function(list, index, target, record, e) {
+        var me = this,
+            store = list.getStore(),
+            node = store.getAt(index);
+
+        if (me.getAnimation()) {
+            me.scrollToSelectedItem();
+            me.readyAnimation(list, index, target, record, e);
+        }
+
+        // if any of the event handlers return 'false', we cancel processing of the tap
+        var ret = me.fireEvent('itemtap', me, list, index, target, record, e);
+        if (ret === false) {
+            return;
+        }
+
+        if (node.isLeaf()) {
+            me.fireEvent('leafitemtap',
+                list, index, target, record, e);
+        }
+        else {
+            if (node.isExpanded()) {
+                node.collapse();
+            }
+            else {
+                if(me.getSingleMode()) {
+                    me.doAllCollapseWithSingleMode(record.data.depth);
+                }
+                node.expand();
+            }
+        }
+
+        if (me.getIndent()) {
+            me.doIndent();
+        }
+    },
+
+    /**
+     * @protected
+     * @param  {Ext.dataview.List} list
+     * @param  {Ext.data.Record} record
+     * @param  {Number} index
+     */
+    onItemIndexChange: function(list, record, index) {
+        var me = this;
+        if (me.getIndent()) {
+            me.doIndent();
+        }
+    },
+
+    /**
+     * @private
+     * http://siva-technology.blogspot.pt/2013/03/sencha-touch-scroll-to-selected-item-on.html
+     * Position list item
+     */
+    scrollToSelectedItem: function() {
+        var me = this,
+            list = me.getList(),
+            store = list.getStore(),
+            selected = list.getSelection()[0],
+            idx = store.indexOf(selected),
+            map = list.getItemMap(),
+            offset = map.map[idx];
+
+        list.getScrollable().getScroller().scrollTo(0, offset);
+    },
+
+    /**
+     * @private
+     * @param  {Ext.dataview.List} list
+     * @param  {Number} index
+     * @param  {Ext.Element} target
+     * @param  {Ext.data.Record} record
+     */
+    readyAnimation : function(list, index, target, record){
+        var me = this,
+            id = record.getId();
+
+        var parentItem = list.getStore().getAt(index);
+        me.addListExpandListeners(parentItem);
+    },
+
+    /**
+     * @private
+     * @param  {Ext.data.Model} parent
+     */
+    addListExpandListeners: function(parent) {
+        var me = this;
+
+       me.loadedTaps = me.loadedTaps || {};
+
+        if (me.loadedTaps[parent.id]) {
+             return;
+        }
+        else {
+            me.loadedTaps[parent.id] = true;
+        }
+
+        parent.setListeners({
+            expand: me.onExpandWithAnimation,
+            scope: me
+        });
+    },
+
+    /**
+     * @private
+     * @param  {Ext.data.Model} parent
+     */
+    onExpandWithAnimation: function(parent) {
+        var me = this,
+            list = me.getList();
+
+        Ext.each(parent.childNodes, function(el) {
+            var item = list.getItemAt(list.getStore().indexOf(el));
+            item.hide();
+            if (el.get('expanded')){
+                me.addListExpandListeners(item, list);
+                el.collapse();
+                el.expand();
+            }
+        });
+
+        Ext.each(parent.childNodes, function(el){
+            var item = list.getItemAt(list.getStore().indexOf(el));
+            try {
+                item.show({
+                    easing: 'easeInOut',
+                    duration: me.getAnimationDuration(),
+                    autoClear: true,
+                    from: {
+                        opacity: 0,
+                        height:'0px'
+                    },
+                    to: {
+                        opacity: 1,
+                        height:'51px'
+                    }
+                });
+            } catch(e) {}
+        });
+    },
+
+    /**
+     * @private
+     */
+    doIndent: function() {
+        var me = this,
+            list = me.getList();
+
+        var items = list.listItems,
+            ln = items.length,
+            i, item, record, elem, indent;
+
+        for (i = 0; i < ln; i++) {
+            item = items[i];
+            record = item.getRecord();
+            if (!Ext.isEmpty(record)) {
+                elem = item.element.down('.x-innerhtml');
+                indent = ((record.getDepth() + 0.5) -1) + 'em';
+                // 2.1
+                // elem = item.element.down('.x-list-item-body .x-innerhtml');
+                // indent = ((record.getDepth()) -1) + 'em';
+                elem.dom.style.setProperty('padding-left', indent);
+            }
+        }
+    },
+
+    /**
+     * HACK: See. Can not able to load json data in Sencha touch 2.1 Accordionlist
+     *       http://www.sencha.com/forum/showthread.php?253032-Can-not-able-to-load-json-data-in-Sencha-touch-2.1-Accordionlist
+     * @private
+     * @param  {Ext.data.TreeStore} store
+     * @return {Ext.data.TreeStore}
+     */
+    patchStore: function(store) {
+        var me = this;
+
+        if (!store.isStore) {
+            console.error('You should set instance of Ext.data.TreeStore to `store` config');
+            return;
+        }
+
+        store.onProxyLoad = function(operation) {
+            var records = operation.getRecords(),
+                successful = operation.wasSuccessful(),
+                node = operation.getNode();
+
+            me.loadedTaps = {}; // Reset
+
+            node.beginEdit();
+            node.set('loading', false);
+            if (successful) {
+                records = this.fillNode(node, records);
+            }
+            node.endEdit();
+            this.updateNode(node);
+            this.loading = false;
+            this.loaded = true;
+
+            // Model event
+            node.fireEvent('load', node, records, successful);
+            // Store event
+            this.fireEvent('load', this, records, successful, operation);
+            // Ext.ux.AccordionList event
+            me.fireEvent('load', this, records, successful, operation);
+
+            // this is a callback that would have been passed to the 'read' function and is
+            // optional
+            Ext.callback(operation.getCallback(), operation.getScope() ||
+                me, [records, operation, successful]);
+        };
+        store.onNodeBeforeExpand = function() {
+            // Do nothing.
+        };
+
+        store.setClearOnLoad(false);
+
+        if (store.getAutoLoad()) {
+            Ext.defer(function() {
+                var list = this.getList(),
+                    tmp = list.getLoadingText();
+                list.setLoadingText(null);
+                store.load();
+                list.setLoadingText(tmp);
+            }, 500, this);
+        }
+        return store;
+    }
+
+});
+
+/**
+ * Adds a Load More button at the bottom of the list. When the user presses this button,
+ * the next page of data will be loaded into the store and appended to the List.
+ *
+ * By specifying `{@link #autoPaging}: true`, an 'infinite scroll' effect can be achieved,
+ * i.e., the next page of content will load automatically when the user scrolls to the
+ * bottom of the list.
+ *
+ * ## Example
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *
+ *         store: Ext.create('TweetStore'),
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.ListPaging',
+ *                 autoPaging: true
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{profile_image_url}" />',
+ *             '<div class="tweet">{text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.ListPaging', {
+    extend:  Ext.Component ,
+    alias: 'plugin.listpaging',
+
+    config: {
+        /**
+         * @cfg {Boolean} autoPaging
+         * True to automatically load the next page when you scroll to the bottom of the list.
+         */
+        autoPaging: false,
+
+        /**
+         * @cfg {String} loadMoreText The text used as the label of the Load More button.
+         */
+        loadMoreText: 'Load More...',
+
+        /**
+         * @cfg {String} noMoreRecordsText The text used as the label of the Load More button when the Store's
+         * {@link Ext.data.Store#totalCount totalCount} indicates that all of the records available on the server are
+         * already loaded
+         */
+        noMoreRecordsText: 'No More Records',
+
+        /**
+         * @private
+         * @cfg {String} loadTpl The template used to render the load more text
+         */
+        loadTpl: [
+            '<div class="{cssPrefix}loading-spinner" style="font-size: 180%; margin: 10px auto;">',
+                 '<span class="{cssPrefix}loading-top"></span>',
+                 '<span class="{cssPrefix}loading-right"></span>',
+                 '<span class="{cssPrefix}loading-bottom"></span>',
+                 '<span class="{cssPrefix}loading-left"></span>',
+            '</div>',
+            '<div class="{cssPrefix}list-paging-msg">{message}</div>'
+        ].join(''),
+
+        /**
+         * @cfg {Object} loadMoreCmp
+         * @private
+         */
+        loadMoreCmp: {
+            xtype: 'component',
+            baseCls: Ext.baseCSSPrefix + 'list-paging',
+            scrollDock: 'bottom',
+            hidden: true
+        },
+
+        /**
+         * @private
+         * @cfg {Boolean} loadMoreCmpAdded Indicates whether or not the load more component has been added to the List
+         * yet.
+         */
+        loadMoreCmpAdded: false,
+
+        /**
+         * @private
+         * @cfg {String} loadingCls The CSS class that is added to the {@link #loadMoreCmp} while the Store is loading
+         */
+        loadingCls: Ext.baseCSSPrefix + 'loading',
+
+        /**
+         * @private
+         * @cfg {Ext.List} list Local reference to the List this plugin is bound to
+         */
+        list: null,
+
+        /**
+         * @private
+         * @cfg {Ext.scroll.Scroller} scroller Local reference to the List's Scroller
+         */
+        scroller: null,
+
+        /**
+         * @private
+         * @cfg {Boolean} loading True if the plugin has initiated a Store load that has not yet completed
+         */
+        loading: false
+    },
+
+    /**
+     * @private
+     * Sets up all of the references the plugin needs
+     */
+    init: function(list) {
+        var scroller = list.getScrollable().getScroller(),
+            store    = list.getStore();
+
+        this.setList(list);
+        this.setScroller(scroller);
+        this.bindStore(list.getStore());
+
+        this.addLoadMoreCmp();
+
+        // The List's Store could change at any time so make sure we are informed when that happens
+        list.updateStore = Ext.Function.createInterceptor(list.updateStore, this.bindStore, this);
+
+        if (this.getAutoPaging()) {
+            scroller.on({
+                scrollend: this.onScrollEnd,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     */
+    bindStore: function(newStore, oldStore) {
+        if (oldStore) {
+            oldStore.un({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+
+        if (newStore) {
+            newStore.on({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Removes the List/DataView's loading mask because we show our own in the plugin. The logic here disables the
+     * loading mask immediately if the store is autoloading. If it's not autoloading, allow the mask to show the first
+     * time the Store loads, then disable it and use the plugin's loading spinner.
+     * @param {Ext.data.Store} store The store that is bound to the DataView
+     */
+    disableDataViewMask: function() {
+        var list = this.getList();
+            this._listMask = list.getLoadingText();
+
+        list.setLoadingText(null);
+    },
+
+    enableDataViewMask: function() {
+        if(this._listMask) {
+            var list = this.getList();
+            list.setLoadingText(this._listMask);
+            delete this._listMask;
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyLoadTpl: function(config) {
+        return (Ext.isObject(config) && config.isTemplate) ? config : new Ext.XTemplate(config);
+    },
+
+    /**
+     * @private
+     */
+    applyLoadMoreCmp: function(config) {
+        config = Ext.merge(config, {
+            html: this.getLoadTpl().apply({
+                cssPrefix: Ext.baseCSSPrefix,
+                message: this.getLoadMoreText()
+            }),
+            scrollDock: 'bottom',
+            listeners: {
+                tap: {
+                    fn: this.loadNextPage,
+                    scope: this,
+                    element: 'element'
+                }
+            }
+        });
+
+        return Ext.factory(config, Ext.Component, this.getLoadMoreCmp());
+    },
+
+    /**
+     * @private
+     * If we're using autoPaging and detect that the user has scrolled to the bottom, kick off loading of the next page
+     */
+    onScrollEnd: function(scroller, x, y) {
+        var list = this.getList();
+
+        if (!this.getLoading() && y >= scroller.maxPosition.y) {
+            this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
+            list.setScrollToTopOnRefresh(false);
+
+            this.loadNextPage();
+        }
+    },
+
+    /**
+     * @private
+     * Makes sure we add/remove the loading CSS class while the Store is loading
+     */
+    updateLoading: function(isLoading) {
+        var loadMoreCmp = this.getLoadMoreCmp(),
+            loadMoreCls = this.getLoadingCls();
+
+        if (isLoading) {
+            loadMoreCmp.addCls(loadMoreCls);
+        } else {
+            loadMoreCmp.removeCls(loadMoreCls);
+        }
+    },
+
+    /**
+     * @private
+     * If the Store is just about to load but it's currently empty, we hide the load more button because this is
+     * usually an outcome of setting a new Store on the List so we don't want the load more button to flash while
+     * the new Store loads
+     */
+    onStoreBeforeLoad: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }
+    },
+
+    /**
+     * @private
+     */
+    onStoreLoad: function(store) {
+        var loadCmp  = this.getLoadMoreCmp(),
+            template = this.getLoadTpl(),
+            message  = this.storeFullyLoaded() ? this.getNoMoreRecordsText() : this.getLoadMoreText();
+
+        if (store.getCount()) {
+            loadCmp.show();
+        }
+        this.setLoading(false);
+
+        //if we've reached the end of the data set, switch to the noMoreRecordsText
+        loadCmp.setHtml(template.apply({
+            cssPrefix: Ext.baseCSSPrefix,
+            message: message
+        }));
+
+        if (this.currentScrollToTopOnRefresh !== undefined) {
+            this.getList().setScrollToTopOnRefresh(this.currentScrollToTopOnRefresh);
+            delete this.currentScrollToTopOnRefresh;
+        }
+
+        this.enableDataViewMask();
+    },
+
+    onFilter: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }else {
+            this.getLoadMoreCmp().show();
+        }
+    },
+
+    /**
+     * @private
+     * Because the attached List's inner list element is rendered after our init function is called,
+     * we need to dynamically add the loadMoreCmp later. This does this once and caches the result.
+     */
+    addLoadMoreCmp: function() {
+        var list = this.getList(),
+            cmp  = this.getLoadMoreCmp();
+
+        if (!this.getLoadMoreCmpAdded()) {
+            list.add(cmp);
+
+            /**
+             * @event loadmorecmpadded  Fired when the Load More component is added to the list. Fires on the List.
+             * @param {Ext.plugin.ListPaging} this The list paging plugin
+             * @param {Ext.List} list The list
+             */
+            list.fireEvent('loadmorecmpadded', this, list);
+            this.setLoadMoreCmpAdded(true);
+        }
+
+        return cmp;
+    },
+
+    /**
+     * @private
+     * Returns true if the Store is detected as being fully loaded, or the server did not return a total count, which
+     * means we're in 'infinite' mode
+     * @return {Boolean}
+     */
+    storeFullyLoaded: function() {
+        var store = this.getList().getStore(),
+            total = store.getTotalCount();
+
+        return total !== null ? store.getTotalCount() <= (store.currentPage * store.getPageSize()) : false;
+    },
+
+    /**
+     * @private
+     */
+    loadNextPage: function() {
+        var me = this;
+        if (!me.storeFullyLoaded()) {
+            me.disableDataViewMask();
+            me.setLoading(true);
+            me.getList().getStore().nextPage({ addRecords: true });
+        }
+    }
+});
+
+/**
+ * This plugin adds pull to refresh functionality to the List.
+ *
+ * ## Example
+ *
+ *     @example
+ *     var store = Ext.create('Ext.data.Store', {
+ *         fields: ['name', 'img', 'text'],
+ *         data: [
+ *             {
+ *                 name: 'rdougan',
+ *                 img: 'http://a0.twimg.com/profile_images/1261180556/171265_10150129602722922_727937921_7778997_8387690_o_reasonably_small.jpg',
+ *                 text: 'JavaScript development'
+ *             }
+ *         ]
+ *     });
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *         fullscreen: true,
+ *
+ *         store: store,
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.PullRefresh',
+ *                 pullText: 'Pull down for more new Tweets!'
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{img}" alt="{name} photo" />',
+ *             '<div class="tweet"><b>{name}:</b> {text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.PullRefresh', {
+    extend:  Ext.Component ,
+    alias: 'plugin.pullrefresh',
+                                 
+
+    config: {
+        /**
+         * @cfg {Ext.dataview.List} list
+         * The list to which this PullRefresh plugin is connected.
+         * This will usually by set automatically when configuring the list with this plugin.
+         * @accessor
+         */
+        list: null,
+
+        /**
+         * @cfg {String} pullText The text that will be shown while you are pulling down.
+         * @accessor
+         */
+        pullText: 'Pull down to refresh...',
+
+        /**
+         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
+         * @accessor
+         */
+        releaseText: 'Release to refresh...',
+
+        /**
+         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
+         * @accessor
+         */
+        loadingText: 'Loading...',
+
+        /**
+         * @cfg {String} loadedText The text that will be when data has been loaded.
+         * @accessor
+         */
+        loadedText: 'Loaded.',
+
+        /**
+         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
+         * @accessor
+         */
+        lastUpdatedText: 'Last Updated:&nbsp;',
+
+        /**
+         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
+         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
+         * that will be loading and have unspecified heights.
+         */
+        scrollerAutoRefresh: false,
+
+        /**
+         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
+         * If false call {@link #snapBack}() to manually snap the pulldown back.
+         */
+        autoSnapBack: true,
+
+        /**
+         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
+         * @accessor
+         */
+        snappingAnimationDuration: 300,
+        /**
+         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
+         */
+        lastUpdatedDateFormat: 'm/d/Y h:iA',
+
+        /**
+         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
+         */
+        overpullSnapBackDuration: 300,
+
+        /**
+         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
+         * Will be passed a config object with properties state, message and updated
+         *
+         * @accessor
+         */
+        pullTpl: [
+            '<div class="x-list-pullrefresh-arrow"></div>',
+            '<div class="x-loading-spinner">',
+                '<span class="x-loading-top"></span>',
+                '<span class="x-loading-right"></span>',
+                '<span class="x-loading-bottom"></span>',
+                '<span class="x-loading-left"></span>',
+            '</div>',
+            '<div class="x-list-pullrefresh-wrap">',
+                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
+                '<div class="x-list-pullrefresh-updated">{updated}</div>',
+            '</div>'
+        ].join(''),
+
+        translatable: true
+    },
+
+    // @private
+    $state: "pull",
+    // @private
+    getState: function() {
+        return this.$state
+    },
+    // @private
+    setState: function(value) {
+        this.$state = value;
+        this.updateView();
+    },
+    // @private
+    $isSnappingBack: false,
+    // @private
+    getIsSnappingBack: function() {
+        return this.$isSnappingBack;
+    },
+    // @private
+    setIsSnappingBack: function(value) {
+        this.$isSnappingBack = value;
+    },
+
+    // @private
+    init: function(list) {
+        var me = this;
+
+        me.setList(list);
+        me.initScrollable();
+    },
+
+    getElementConfig: function() {
+        return {
+            reference: 'element',
+            classList: ['x-unsized'],
+            children: [
+                {
+                    reference: 'innerElement',
+                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
+                }
+            ]
+        };
+    },
+
+    // @private
+    initScrollable: function() {
+        var me = this,
+            list = me.getList(),
+            scrollable = list.getScrollable(),
+            scroller;
+
+        if (!scrollable) {
+            return;
+        }
+
+        scroller = scrollable.getScroller();
+        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
+
+        me.lastUpdated = new Date();
+
+        list.insert(0, me);
+
+        scroller.on({
+            scroll: me.onScrollChange,
+            scope: me
+        });
+
+        this.updateView();
+    },
+
+    // @private
+    applyPullTpl: function(config) {
+        if (config instanceof Ext.XTemplate) {
+            return config
+        } else {
+            return new Ext.XTemplate(config);
+        }
+    },
+
+    // @private
+    updateList: function(newList, oldList) {
+        var me = this;
+
+        if (newList && newList != oldList) {
+            newList.on({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        } else if (oldList) {
+            oldList.un({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        }
+    },
+
+    // @private
+    getPullHeight: function() {
+       return this.innerElement.getHeight();
+    },
+
+    /**
+     * @private
+     * Attempts to load the newest posts via the attached List's Store's Proxy
+     */
+    fetchLatest: function() {
+        var store = this.getList().getStore(),
+            proxy = store.getProxy(),
+            operation;
+
+        operation = Ext.create('Ext.data.Operation', {
+            page: 1,
+            start: 0,
+            model: store.getModel(),
+            limit: store.getPageSize(),
+            action: 'read',
+            sorters: store.getSorters(),
+            filters: store.getRemoteFilter() ? store.getFilters() : []
+        });
+
+        proxy.read(operation, this.onLatestFetched, this);
+    },
+
+    /**
+     * @private
+     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
+     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
+     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
+     * timeline between the new and the old records.
+     */
+    onLatestFetched: function(operation) {
+        var store = this.getList().getStore(),
+            oldRecords = store.getData(),
+            newRecords = operation.getRecords(),
+            length = newRecords.length,
+            toInsert = [],
+            newRecord, oldRecord, i;
+
+        for (i = 0; i < length; i++) {
+            newRecord = newRecords[i];
+            oldRecord = oldRecords.getByKey(newRecord.getId());
+
+            if (oldRecord) {
+                oldRecord.set(newRecord.getData());
+            } else {
+                toInsert.push(newRecord);
+            }
+
+            oldRecord = undefined;
+        }
+
+        store.insert(0, toInsert);
+        this.setState("loaded");
+        this.fireEvent('latestfetched', this, toInsert);
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * Snaps the List back to the top after a pullrefresh is complete
+     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
+     */
+    snapBack: function(force) {
+        if(this.getState() !== "loaded" && force !== true) return;
+
+        var list = this.getList(),
+            scroller = list.getScrollable().getScroller();
+
+        scroller.refresh();
+        scroller.minPosition.y = 0;
+
+        scroller.on({
+            scrollend: this.onSnapBackEnd,
+            single: true,
+            scope: this
+        });
+
+        this.setIsSnappingBack(true);
+        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
+    },
+
+    /**
+     * @private
+     * Called when PullRefresh has been snapped back to the top
+     */
+    onSnapBackEnd: function() {
+        this.setState("pull");
+        this.setIsSnappingBack(false);
+    },
+
+    /**
+     * @private
+     * Called when the Scroller updates from the list
+     * @param scroller
+     * @param x
+     * @param y
+     */
+    onScrollChange: function(scroller, x, y) {
+        if (y <= 0) {
+            var pullHeight = this.getPullHeight(),
+                isSnappingBack = this.getIsSnappingBack();
+
+            if(this.getState() === "loaded" && !isSnappingBack) {
+                this.snapBack();
+            }
+
+            if (this.getState() !== "loading" && this.getState() !=="loaded") {
+                if (-y >= pullHeight + 10) {
+                    this.setState("release");
+                    scroller.getContainer().onBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
+                    this.setState("pull");
+                    scroller.getContainer().unBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                }
+            }
+            this.getTranslatable().translate(0, -y);
+        }
+    },
+
+    /**
+     * @private
+     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
+     */
+    onScrollerDragEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            scroller.minPosition.y = -this.getPullHeight();
+            scroller.on({
+                scrollend: 'fetchLatest',
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Updates the content based on the PullRefresh Template
+     */
+    updateView: function() {
+        var state = this.getState(),
+            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
+            templateConfig = {state: state, updated: lastUpdatedText},
+            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
+            fn = "get" + stateFn + "Text";
+
+        if (this[fn] && Ext.isFunction(this[fn])) {
+            templateConfig.message = this[fn].call(this);
+        }
+
+        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
+        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
+        this.getPullTpl().overwrite(this.innerElement, templateConfig);
+    }
+}, function() {
+
+    /**
+     * Updates the PullRefreshText.
+     * @method setPullRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
+
+    /**
+     * Updates the ReleaseRefreshText.
+     * @method setReleaseRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} pullReleaseText
+                 * Optional Text during the Release State.
+                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
+                 */
+                if (config.hasOwnProperty('pullReleaseText')) {
+                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
+                    config.releaseText = config.pullReleaseText;
+                    delete config.pullReleaseText;
+                }
+
+                /**
+                 * @cfg {String} pullRefreshText
+                 * Optional Text during the Pull State.
+                 * @deprecated 2.3.0 Please use {@link #pullText} instead
+                 */
+                if (config.hasOwnProperty('pullRefreshText')) {
+                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
+                    config.pullText = config.pullRefreshText;
+                    delete config.pullRefreshText;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+});
+
+Ext.define('AccordionListExample.model.Task', {
+    extend:  Ext.data.Model ,
+    config: {
+        fields: [
+            { name: 'text', type: 'string' }
+        ]
+    }
+});
+
+Ext.define('AccordionListExample.store.Task', {
+    extend:  Ext.data.TreeStore ,
+               
+                                         
+      
+
+    config: {
+        defaultRootProperty: 'items',
+        model: 'AccordionListExample.model.Task',
+
+        // XXX: AccordionList Now show data from JSON
+        proxy: {
+            type: 'ajax',
+            url: 'resources/data/testData.json'
+        }
+    }
+
+});
+
+Ext.define('AccordionListExample.model.PL', {
+    extend:  Ext.data.Model ,
+    config: {
+        fields: [
+            {name: 'text', type: 'string'},
+            {name: 'sales', type: 'number'},
+            {name: 'expenses', type: 'number'},
+            {name: 'profits', type: 'number'},
+            {name: 'year', type: 'boolean'}
+        ]
+    }
+});
+
+Ext.define('AccordionListExample.store.PL', {
+    extend:  Ext.data.TreeStore ,
+               
+                                       
+      
+
+    config: {
+        defaultRootProperty: 'items',
+        model: 'AccordionListExample.model.PL',
+
+        // XXX: AccordionList Now show data from JSON
+        proxy: {
+            type: 'ajax',
+            url: 'resources/data/plData.json'
+        }
+    }
+});
+
+Ext.define('AccordionListExample.store.BigTask', {
+    extend:  Ext.data.TreeStore ,
+               
+                                          
+                              
+      
+
+    config: {
+        defaultRootProperty: 'items',
+        model: 'AccordionListExample.model.Task',
+
+        proxy: {
+            type: 'jsonp',
+            url: 'http://kawanoshinobu-api.herokuapp.com/task',
+            startParam:'offset',
+            limitParam:'limit',
+            reader: {
+                type: 'json',
+                rootProperty: 'items'
+            }
+        }
+    }
+
+});
+
+Ext.define('AccordionListExample.model.Components', {
+    extend:  Ext.data.Model ,
+    config: {
+        fields: [
+            { name: 'text', type: 'string' },
+            { name: 'icon', type: 'string' },
+            { name: 'message', type: 'string' },
+            { name: 'limit', type: 'date' }
+        ]
+    }
+});
+
+Ext.define('AccordionListExample.store.Components', {
+    extend:  Ext.data.TreeStore ,
+               
+                                               
+      
+
+    config: {
+        defaultRootProperty: 'items',
+        model: 'AccordionListExample.model.Components',
+
+        // XXX: AccordionList Now show data from JSON
+        proxy: {
+            type: 'ajax',
+            url: 'resources/data/componentsData.json'
+        }
+    }
+
+});
+
+Ext.define('AccordionListExample.store.Grouped', {
+    extend:  Ext.data.TreeStore ,
+               
+                                         
+      
+
+    config: {
+        defaultRootProperty: 'items',
+        model: 'AccordionListExample.model.Task',
+
+        grouper: {
+            groupFn: function(item) {
+                return item.get('text')[0];
+            }
+        },
+
+        folderSort: true,
+
+        proxy: {
+            type: 'ajax',
+            url: 'resources/data/groupedData.json'
+        }
+    },
+
+    //@Override
+    updateFolderSort: function(folderSort) {
+        return;
+    }
+
+});
+
+Ext.define('AccordionListExample.view.Main', {
+    extend:  Ext.tab.Panel ,
+    xtype: 'main',
+               
+                       
+                              
+                               
+                                
+                                
+      
+    config: {
+        tabBarPosition: 'bottom',
+        tabBar: {
+            scrollable : 'horizontal'
+        },
+        items: [
+            {
+                xtype: 'titlebar',
+                title: 'Accordion List Example',
+                docked: 'top'
+            },
+            {
+                title: 'Basic',
+                iconCls: 'list',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'toolbar',
+                        items: [
+                            {
+                                xtype: 'segmentedbutton',
+                                itemId: 'basic',
+                                centered: true,
+                                items: [
+                                    {
+                                        text: 'Expand',
+                                        action: 'expand'
+                                    },
+                                    {
+                                        text: 'Collapse',
+                                        action: 'collapse'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.Task'),
+                        flex: 1,
+                        itemId: 'basic',
+                        listeners: {
+                            initialize: function() {
+                                this.load();
+                            }
+                        }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            },
+            {
+                title: 'Decorate',
+                iconCls: 'star',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'toolbar',
+                        items: [
+                            {
+                                xtype: 'segmentedbutton',
+                                itemId: 'decorate',
+                                centered: true,
+                                items: [
+                                    {
+                                        text: 'Expand',
+                                        action: 'expand'
+                                    },
+                                    {
+                                        text: 'Collapse',
+                                        action: 'collapse'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.Task'),
+                        flex: 1,
+                        singleMode: true,
+                        animation: true,
+                        animationDuration: 500,
+                        showCount: true,
+                        indent: true,
+                        itemId: 'decorate',
+                        listeners: {
+                            initialize: function() {
+                                this.load();
+                            }
+                        }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            },
+            {
+                title: 'Nested',
+                iconCls: 'chart',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'toolbar',
+                        items: [
+                            {
+                                xtype: 'segmentedbutton',
+                                itemId: 'nested',
+                                centered: true,
+                                items: [
+                                    {
+                                        text: 'Expand',
+                                        action: 'expand'
+                                    },
+                                    {
+                                        text: 'Collapse',
+                                        action: 'collapse'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.PL'),
+                        headerItemTpl: [
+                            '<tpl if="this.isExpanded(values)">',
+                                '<div class="down"></div>',
+                                '<div <tpl if="values.year">style="font-style:italic;"</tpl>>',
+                                '{text}</div>',
+                            '<tpl else>',
+                                '<div class="right"></div>',
+                                '<div <tpl if="values.year">style="font-style:italic;"</tpl>>',
+                                '{text}</div>',
+                            '</tpl>'
+                        ].join(''),
+                        contentItemTpl: [
+                            '<div style="display:-webkit-box;width:100%;text-align:right;">',
+                                '<div style="width:20%;"></div>',
+                                '<div style="-webkit-box-flex:1;color:#157fcc;">${sales}</div>',
+                                '<div style="-webkit-box-flex:1;color:red;">${expenses}</div>',
+                                '<div style="-webkit-box-flex:1;color:green;">${profits}</div>',
+                            '</div>'
+                        ].join(''),
+                        useSelectedHighlights: false,
+                        showCount: true,
+                        animation: true,
+                        indent: true,
+                        animationDuration: 300,
+                        flex: 1,
+                        itemId: 'nested',
+                        listeners: {
+                            initialize: function() {
+                                this.load();
+                                this.addCls('PL-view');
+                            }
+                        }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            },
+            {
+                title: 'Paging',
+                iconCls: 'bird',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.BigTask'),
+                        listConfig: {
+                            plugins: [
+                                {
+                                    xclass: 'Ext.plugin.ListPaging',
+                                    autoPaging: true
+                                },
+                                {
+                                    xclass: 'Ext.plugin.PullRefresh',
+                                    pullText: 'Pull down for more data!'
+                                }
+                            ]
+                        },
+                        flex: 1,
+                        itemId: 'paging',
+                        listeners: {
+                            initialize: function() {
+                                this.load();
+                            }
+                        }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            },
+            {
+                title: 'Components',
+                iconCls: 'box',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'toolbar',
+                        items: [
+                            {
+                                xtype: 'segmentedbutton',
+                                itemId: 'components',
+                                centered: true,
+                                items: [
+                                    {
+                                        text: 'Expand',
+                                        action: 'expand'
+                                    },
+                                    {
+                                        text: 'Collapse',
+                                        action: 'collapse'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.Components'),
+                        flex: 1,
+                        indent: true,
+                        useComponents: true,
+                        defaultType: 'examplelistitem',
+                        itemId: 'components',
+                        listeners: {
+                            initialize: function() {
+                                this.load();
+                                this.addCls('components-view');
+                            }
+                        }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            },
+            {
+                title: 'Grouped',
+                iconCls: 'user',
+                layout: 'vbox',
+                items: [
+                    {
+                        xtype: 'toolbar',
+                        items: [
+                            {
+                                xtype: 'segmentedbutton',
+                                itemId: 'grouped',
+                                centered: true,
+                                items: [
+                                    {
+                                        text: 'Expand',
+                                        action: 'expand'
+                                    },
+                                    {
+                                        text: 'Collapse',
+                                        action: 'collapse'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'accordionlist',
+                        store: Ext.create('AccordionListExample.store.Grouped'),
+                        flex: 1,
+                        showCount: true,
+                        indent: true,
+                        itemId: 'grouped',
+                        indexBar: {
+                            margin:1,
+                            listeners: {
+                                index: function (html, target, eOpts) {
+                                    console.log('inside indexbar', target);
+                                }
+                            }
+                        }
+                        // XXX: This is very very slow...
+                        // listeners: {
+                        //     initialize: function() {
+                        //         this.load();
+                        //     }
+                        // }
+                    }
+                ],
+                control: {
+                    'button[action=expand]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllExpand();
+                        }
+                    },
+                     'button[action=collapse]': {
+                        tap: function() {
+                            this.down('accordionlist').doAllCollapse();
+                        }
+                    }
+                }
+            }
+        ],
+        listeners: {
+            // XXX: For grouped accordionList
+            activeitemchange: function(self, newItem) {
+                var me    = this,
+                    list  = newItem.down('accordionlist'),
+                    store = list.getStore();
+
+                if (store.getCount() === 0) {
+                    me.setMasked({
+                        xtype: 'loadmask'
+                    });
+                    store.on('load', function() {
+                        me.setMasked(false);
+                    }, me, { single: true });
+                    store.load({
+                        callback: function() {
+                            list.getList().refresh();
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+});
+
+// If you use index bar, it might be better to override
+// Ext.dataview.List scroolToRecord in case of record is empty.
+Ext.define('Override.dataview.List', {
+    override : 'Ext.dataview.List',
+    scrollToRecord: function(record, animate, overscroll) {
+        var me = this,
+            store = me.getStore(),
+            index = store.indexOf(record);
+
+        item = me.listItems[index];
+
+        if (item) {
+            me.callParent(arguments);
+        }
+    }
+});
+
+
 // Using @mixins to include all members of Ext.event.Touch
 // into here to keep documentation simpler
 /**
@@ -67020,6 +69829,2558 @@ Ext.define('Ext.event.recognizer.Tap', {
 
 /**
  * @private
+ *
+ * A general {@link Ext.picker.Picker} slot class.  Slots are used to organize multiple scrollable slots into
+ * a single {@link Ext.picker.Picker}.
+ *
+ *     {
+ *         name : 'limit_speed',
+ *         title: 'Speed Limit',
+ *         data : [
+ *             {text: '50 KB/s', value: 50},
+ *             {text: '100 KB/s', value: 100},
+ *             {text: '200 KB/s', value: 200},
+ *             {text: '300 KB/s', value: 300}
+ *         ]
+ *     }
+ *
+ * See the {@link Ext.picker.Picker} documentation on how to use slots.
+ */
+Ext.define('Ext.picker.Slot', {
+    extend:  Ext.dataview.DataView ,
+    xtype : 'pickerslot',
+    alternateClassName: 'Ext.Picker.Slot',
+               
+                        
+                         
+                        
+                               
+      
+
+    /**
+     * @event slotpick
+     * Fires whenever an slot is picked
+     * @param {Ext.picker.Slot} this
+     * @param {Mixed} value The value of the pick
+     * @param {HTMLElement} node The node element of the pick
+     */
+
+    isSlot: true,
+
+    config: {
+        /**
+         * @cfg {String} title The title to use for this slot, or `null` for no title.
+         * @accessor
+         */
+        title: null,
+
+        /**
+         * @private
+         * @cfg {Boolean} showTitle
+         * @accessor
+         */
+        showTitle: true,
+
+        /**
+         * @private
+         * @cfg {String} cls The main component class
+         * @accessor
+         */
+        cls: Ext.baseCSSPrefix + 'picker-slot',
+
+        /**
+         * @cfg {String} name (required) The name of this slot.
+         * @accessor
+         */
+        name: null,
+
+        /**
+         * @cfg {Number} value The value of this slot
+         * @accessor
+         */
+        value: null,
+
+        /**
+         * @cfg {Number} flex
+         * @accessor
+         * @private
+         */
+        flex: 1,
+
+        /**
+         * @cfg {String} align The horizontal alignment of the slot's contents.
+         *
+         * Valid values are: "left", "center", and "right".
+         * @accessor
+         */
+        align: 'left',
+
+        /**
+         * @cfg {String} displayField The display field in the store.
+         * @accessor
+         */
+        displayField: 'text',
+
+        /**
+         * @cfg {String} valueField The value field in the store.
+         * @accessor
+         */
+        valueField: 'value',
+
+        /**
+         * @cfg {String} itemTpl The template to be used in this slot.
+         * If you set this, {@link #displayField} will be ignored.
+         */
+        itemTpl: null,
+
+        /**
+         * @cfg {Object} scrollable
+         * @accessor
+         * @hide
+         */
+        scrollable: {
+            direction: 'vertical',
+            indicators: false,
+            momentumEasing: {
+                minVelocity: 2
+            },
+            slotSnapEasing: {
+                duration: 100
+            }
+        },
+
+        /**
+         * @cfg {Boolean} verticallyCenterItems
+         * @private
+         */
+        verticallyCenterItems: true
+    },
+
+    platformConfig: [{
+        theme: ['Windows'],
+        title: 'choose an item'
+        // verticallyCenterItems: false
+    }],
+
+    constructor: function() {
+        /**
+         * @property selectedIndex
+         * @type Number
+         * The current `selectedIndex` of the picker slot.
+         * @private
+         */
+        this.selectedIndex = 0;
+
+        /**
+         * @property picker
+         * @type Ext.picker.Picker
+         * A reference to the owner Picker.
+         * @private
+         */
+
+        this.callParent(arguments);
+    },
+
+    /**
+     * Sets the title for this dataview by creating element.
+     * @param {String} title
+     * @return {String}
+     */
+    applyTitle: function(title) {
+        //check if the title isnt defined
+        if (title) {
+            //create a new title element
+            title = Ext.create('Ext.Component', {
+                cls: Ext.baseCSSPrefix + 'picker-slot-title',
+                docked: 'top',
+                html: title
+            });
+        }
+
+        return title;
+    },
+
+    updateTitle: function(newTitle, oldTitle) {
+        if (newTitle) {
+            this.add(newTitle);
+            this.setupBar();
+        }
+
+        if (oldTitle) {
+            this.remove(oldTitle);
+        }
+    },
+
+    updateShowTitle: function(showTitle) {
+        var title = this.getTitle(),
+            mode = showTitle ? 'show' : 'hide';
+        if (title) {
+            title.on(mode, this.setupBar, this, { single: true, delay: 50 });
+            title[showTitle ? 'show' : 'hide']();
+        }
+    },
+
+    updateDisplayField: function(newDisplayField) {
+        if (!this.config.itemTpl) {
+            this.setItemTpl('<div class="' + Ext.baseCSSPrefix + 'picker-item {cls} <tpl if="extra">' + Ext.baseCSSPrefix + 'picker-invalid</tpl>">{' + newDisplayField + '}</div>');
+        }
+    },
+
+    /**
+     * Updates the {@link #align} configuration
+     */
+    updateAlign: function(newAlign, oldAlign) {
+        var element = this.element;
+        element.addCls(Ext.baseCSSPrefix + 'picker-' + newAlign);
+        element.removeCls(Ext.baseCSSPrefix + 'picker-' + oldAlign);
+    },
+
+    /**
+     * Looks at the {@link #data} configuration and turns it into {@link #store}.
+     * @param {Object} data
+     * @return {Object}
+     */
+    applyData: function(data) {
+        var parsedData = [],
+            ln = data && data.length,
+            i, item, obj;
+
+        if (data && Ext.isArray(data) && ln) {
+            for (i = 0; i < ln; i++) {
+                item = data[i];
+                obj = {};
+                if (Ext.isArray(item)) {
+                    obj[this.valueField] = item[0];
+                    obj[this.displayField] = item[1];
+                }
+                else if (Ext.isString(item)) {
+                    obj[this.valueField] = item;
+                    obj[this.displayField] = item;
+                }
+                else if (Ext.isObject(item)) {
+                    obj = item;
+                }
+                parsedData.push(obj);
+            }
+        }
+
+        return data;
+    },
+
+    // @private
+    initialize: function() {
+        this.callParent();
+
+        var scroller = this.getScrollable().getScroller();
+
+        this.on({
+            scope: this,
+            painted: 'onPainted',
+            itemtap: 'doItemTap'
+        });
+
+        this.element.on({
+            scope: this,
+            touchstart: 'onTouchStart',
+            touchend: 'onTouchEnd'
+        });
+
+        scroller.on({
+            scope: this,
+            scrollend: 'onScrollEnd'
+        });
+    },
+
+    // @private
+    onPainted: function() {
+        this.setupBar();
+    },
+
+    /**
+     * Returns an instance of the owner picker.
+     * @return {Object}
+     * @private
+     */
+    getPicker: function() {
+        if (!this.picker) {
+            this.picker = this.getParent();
+        }
+
+        return this.picker;
+    },
+
+    // @private
+    setupBar: function() {
+        if (!this.rendered) {
+            //if the component isnt rendered yet, there is no point in calculating the padding just eyt
+            return;
+        }
+
+        var element = this.element,
+            innerElement = this.innerElement,
+            picker = this.getPicker(),
+            bar = picker.bar,
+            value = this.getValue(),
+            showTitle = this.getShowTitle(),
+            title = this.getTitle(),
+            scrollable = this.getScrollable(),
+            scroller = scrollable.getScroller(),
+            titleHeight = 0,
+            barHeight, padding;
+
+        barHeight = bar.dom.getBoundingClientRect().height;
+
+        if (showTitle && title) {
+            titleHeight = title.element.getHeight();
+        }
+
+        padding = Math.ceil((element.getHeight() - titleHeight - barHeight) / 2);
+
+        if (this.getVerticallyCenterItems()) {
+            innerElement.setStyle({
+                padding: padding + 'px 0 ' + padding + 'px'
+            });
+        }
+
+        scroller.refresh();
+        scroller.setSlotSnapSize(barHeight);
+        this.setValue(value);
+    },
+
+    // @private
+    doItemTap: function(list, index, item, e) {
+        var me = this;
+        me.selectedIndex = index;
+        me.selectedNode = item;
+        me.scrollToItem(item, true);
+    },
+
+    // @private
+    scrollToItem: function(item, animated) {
+        var y = item.getY(),
+            parentEl = item.parent(),
+            parentY = parentEl.getY(),
+            scrollView = this.getScrollable(),
+            scroller = scrollView.getScroller(),
+            difference;
+
+        difference = y - parentY;
+
+        scroller.scrollTo(0, difference, animated);
+    },
+
+    // @private
+    onTouchStart: function() {
+        this.element.addCls(Ext.baseCSSPrefix + 'scrolling');
+    },
+
+    // @private
+    onTouchEnd: function() {
+        this.element.removeCls(Ext.baseCSSPrefix + 'scrolling');
+    },
+
+    // @private
+    onScrollEnd: function(scroller, x, y) {
+        var me = this,
+            index = Math.round(y / me.picker.bar.dom.getBoundingClientRect().height),
+            viewItems = me.getViewItems(),
+            item = viewItems[index];
+
+        if (item) {
+            me.selectedIndex = index;
+            me.selectedNode = item;
+
+            me.fireEvent('slotpick', me, me.getValue(), me.selectedNode);
+        }
+    },
+
+    /**
+     * Returns the value of this slot
+     * @private
+     */
+    getValue: function(useDom) {
+        var store = this.getStore(),
+            record, value;
+
+        if (!store) {
+            return;
+        }
+
+        if (!this.rendered || !useDom) {
+            return this._value;
+        }
+
+        //if the value is ever false, that means we do not want to return anything
+        if (this._value === false) {
+            return null;
+        }
+
+        record = store.getAt(this.selectedIndex);
+
+        value = record ? record.get(this.getValueField()) : null;
+
+        return value;
+    },
+
+    /**
+     * Sets the value of this slot
+     * @private
+     */
+    setValue: function(value) {
+        return this.doSetValue(value);
+    },
+
+    /**
+     * Sets the value of this slot
+     * @private
+     */
+    setValueAnimated: function(value) {
+        return this.doSetValue(value, true);
+    },
+
+    doSetValue: function(value, animated) {
+        if (!this.rendered) {
+            //we don't want to call this until the slot has been rendered
+            this._value = value;
+            return;
+        }
+
+        var store = this.getStore(),
+            viewItems = this.getViewItems(),
+            valueField = this.getValueField(),
+            index, item;
+
+        index = store.findExact(valueField, value);
+
+        if (index == -1) {
+            index = 0;
+        }
+
+        item = Ext.get(viewItems[index]);
+
+        this.selectedIndex = index;
+        if (item) {
+            this.scrollToItem(item, (animated) ? {
+                duration: 100
+            } : false);
+            this.select(this.selectedIndex);
+        }
+
+        this._value = value;
+    }
+});
+
+/**
+ * @aside example pickers
+ * A general picker class. {@link Ext.picker.Slot}s are used to organize multiple scrollable slots into a single picker. {@link #slots} is
+ * the only necessary configuration.
+ *
+ * The {@link #slots} configuration with a few key values:
+ *
+ * - `name`: The name of the slot (will be the key when using {@link #getValues} in this {@link Ext.picker.Picker}).
+ * - `title`: The title of this slot (if {@link #useTitles} is set to `true`).
+ * - `data`/`store`: The data or store to use for this slot.
+ *
+ * Remember, {@link Ext.picker.Slot} class extends from {@link Ext.dataview.DataView}.
+ *
+ * ## Examples
+ *
+ *     @example miniphone preview
+ *     var picker = Ext.create('Ext.Picker', {
+ *         slots: [
+ *             {
+ *                 name : 'limit_speed',
+ *                 title: 'Speed',
+ *                 data : [
+ *                     {text: '50 KB/s', value: 50},
+ *                     {text: '100 KB/s', value: 100},
+ *                     {text: '200 KB/s', value: 200},
+ *                     {text: '300 KB/s', value: 300}
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *     Ext.Viewport.add(picker);
+ *     picker.show();
+ *
+ * You can also customize the top toolbar on the {@link Ext.picker.Picker} by changing the {@link #doneButton} and {@link #cancelButton} configurations:
+ *
+ *     @example miniphone preview
+ *     var picker = Ext.create('Ext.Picker', {
+ *         doneButton: 'I\'m done!',
+ *         cancelButton: false,
+ *         slots: [
+ *             {
+ *                 name : 'limit_speed',
+ *                 title: 'Speed',
+ *                 data : [
+ *                     {text: '50 KB/s', value: 50},
+ *                     {text: '100 KB/s', value: 100},
+ *                     {text: '200 KB/s', value: 200},
+ *                     {text: '300 KB/s', value: 300}
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *     Ext.Viewport.add(picker);
+ *     picker.show();
+ *
+ * Or by passing a custom {@link #toolbar} configuration:
+ *
+ *     @example miniphone preview
+ *     var picker = Ext.create('Ext.Picker', {
+ *         doneButton: false,
+ *         cancelButton: false,
+ *         toolbar: {
+ *             ui: 'light',
+ *             title: 'My Picker!'
+ *         },
+ *         slots: [
+ *             {
+ *                 name : 'limit_speed',
+ *                 title: 'Speed',
+ *                 data : [
+ *                     {text: '50 KB/s', value: 50},
+ *                     {text: '100 KB/s', value: 100},
+ *                     {text: '200 KB/s', value: 200},
+ *                     {text: '300 KB/s', value: 300}
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *     Ext.Viewport.add(picker);
+ *     picker.show();
+ */
+Ext.define('Ext.picker.Picker', {
+    extend:  Ext.Sheet ,
+    alias : 'widget.picker',
+    alternateClassName: 'Ext.Picker',
+                                                                                             
+
+    isPicker: true,
+
+    /**
+     * @event pick
+     * Fired when a slot has been picked
+     * @param {Ext.Picker} this This Picker.
+     * @param {Object} The values of this picker's slots, in `{name:'value'}` format.
+     * @param {Ext.Picker.Slot} slot An instance of Ext.Picker.Slot that has been picked.
+     */
+
+    /**
+     * @event change
+     * Fired when the value of this picker has changed the Done button has been pressed.
+     * @param {Ext.picker.Picker} this This Picker.
+     * @param {Object} value The values of this picker's slots, in `{name:'value'}` format.
+     */
+
+    /**
+     * @event cancel
+     * Fired when the cancel button is tapped and the values are reverted back to
+     * what they were.
+     * @param {Ext.Picker} this This Picker.
+     */
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'picker',
+
+        /**
+         * @cfg {String/Mixed} doneButton
+         * Can be either:
+         *
+         * - A {String} text to be used on the Done button.
+         * - An {Object} as config for {@link Ext.Button}.
+         * - `false` or `null` to hide it.
+         * @accessor
+         */
+        doneButton: true,
+
+        /**
+         * @cfg {String/Mixed} cancelButton
+         * Can be either:
+         *
+         * - A {String} text to be used on the Cancel button.
+         * - An {Object} as config for {@link Ext.Button}.
+         * - `false` or `null` to hide it.
+         * @accessor
+         */
+        cancelButton: true,
+
+        /**
+         * @cfg {Boolean} useTitles
+         * Generate a title header for each individual slot and use
+         * the title configuration of the slot.
+         * @accessor
+         */
+        useTitles: false,
+
+        /**
+         * @cfg {Array} slots
+         * An array of slot configurations.
+         *
+         * - `name` {String} - Name of the slot
+         * - `data` {Array} - An array of text/value pairs in the format `{text: 'myKey', value: 'myValue'}`
+         * - `title` {String} - Title of the slot. This is used in conjunction with `useTitles: true`.
+         *
+         * @accessor
+         */
+        slots: null,
+
+        /**
+         * @cfg {String/Number} value The value to initialize the picker with.
+         * @accessor
+         */
+        value: null,
+
+        /**
+         * @cfg {Number} height
+         * The height of the picker.
+         * @accessor
+         */
+        height: 220,
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        layout: {
+            type : 'hbox',
+            align: 'stretch'
+        },
+
+        /**
+         * @cfg
+         * @hide
+         */
+        centered: false,
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        left : 0,
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        right: 0,
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        bottom: 0,
+
+        // @private
+        defaultType: 'pickerslot',
+
+        toolbarPosition: 'top',
+
+        /**
+         * @cfg {Ext.TitleBar/Ext.Toolbar/Object} toolbar
+         * The toolbar which contains the {@link #doneButton} and {@link #cancelButton} buttons.
+         * You can override this if you wish, and add your own configurations. Just ensure that you take into account
+         * the {@link #doneButton} and {@link #cancelButton} configurations.
+         *
+         * The default xtype is a {@link Ext.TitleBar}:
+         *
+         *     toolbar: {
+         *         items: [
+         *             {
+         *                 xtype: 'button',
+         *                 text: 'Left',
+         *                 align: 'left'
+         *             },
+         *             {
+         *                 xtype: 'button',
+         *                 text: 'Right',
+         *                 align: 'left'
+         *             }
+         *         ]
+         *     }
+         *
+         * Or to use a {@link Ext.Toolbar instead}:
+         *
+         *     toolbar: {
+         *         xtype: 'toolbar',
+         *         items: [
+         *             {
+         *                 xtype: 'button',
+         *                 text: 'Left'
+         *             },
+         *             {
+         *                 xtype: 'button',
+         *                 text: 'Left Two'
+         *             }
+         *         ]
+         *     }
+         *
+         * @accessor
+         */
+        toolbar: {
+            xtype: 'titlebar'
+        }
+    },
+
+    platformConfig: [{
+        theme: ['Windows'],
+        height: '100%',
+        toolbarPosition: 'bottom',
+        toolbar: {
+            xtype: 'toolbar',
+            layout: {
+                type: 'hbox',
+                pack: 'center'
+            }
+        },
+        doneButton: {
+            iconCls: 'check2',
+            ui: 'round',
+            text: ''
+        },
+        cancelButton: {
+            iconCls: 'delete',
+            ui: 'round',
+            text: ''
+        }
+    }, {
+        theme: ['CupertinoClassic'],
+        toolbar: {
+            ui: 'black'
+        }
+    }, {
+        theme: ['MountainView'],
+        toolbarPosition: 'bottom',
+        toolbar: {
+            defaults: {
+                flex: 1
+            }
+        }
+    }],
+
+    initialize: function() {
+        var me = this,
+            clsPrefix = Ext.baseCSSPrefix,
+            innerElement = this.innerElement;
+
+        //insert the mask, and the picker bar
+        this.mask = innerElement.createChild({
+            cls: clsPrefix + 'picker-mask'
+        });
+
+        this.bar = this.mask.createChild({
+            cls: clsPrefix + 'picker-bar'
+        });
+
+        me.on({
+            scope   : this,
+            delegate: 'pickerslot',
+            slotpick: 'onSlotPick'
+        });
+    },
+
+    /**
+     * @private
+     */
+    applyToolbar: function(config) {
+        if (config === true) {
+            config = {};
+        }
+
+        Ext.applyIf(config, {
+            docked: this.getToolbarPosition()
+        });
+
+        return Ext.factory(config, 'Ext.TitleBar', this.getToolbar());
+    },
+
+    /**
+     * @private
+     */
+    updateToolbar: function(newToolbar, oldToolbar) {
+        if (newToolbar) {
+            this.add(newToolbar);
+        }
+
+        if (oldToolbar) {
+            this.remove(oldToolbar);
+        }
+    },
+
+    /**
+     * Updates the {@link #doneButton} configuration. Will change it into a button when appropriate, or just update the text if needed.
+     * @param {Object} config
+     * @return {Object}
+     */
+    applyDoneButton: function(config) {
+        if (config) {
+            if (Ext.isBoolean(config)) {
+                config = {};
+            }
+
+            if (typeof config == "string") {
+                config = {
+                    text: config
+                };
+            }
+
+            Ext.applyIf(config, {
+                ui: 'action',
+                align: 'right',
+                text: 'Done'
+            });
+        }
+
+        return Ext.factory(config, 'Ext.Button', this.getDoneButton());
+    },
+
+    updateDoneButton: function(newDoneButton, oldDoneButton) {
+        var toolbar = this.getToolbar();
+
+        if (newDoneButton) {
+            toolbar.add(newDoneButton);
+            newDoneButton.on('tap', this.onDoneButtonTap, this);
+        } else if (oldDoneButton) {
+            toolbar.remove(oldDoneButton);
+        }
+    },
+
+    /**
+     * Updates the {@link #cancelButton} configuration. Will change it into a button when appropriate, or just update the text if needed.
+     * @param {Object} config
+     * @return {Object}
+     */
+    applyCancelButton: function(config) {
+        if (config) {
+            if (Ext.isBoolean(config)) {
+                config = {};
+            }
+
+            if (typeof config == "string") {
+                config = {
+                    text: config
+                };
+            }
+
+            Ext.applyIf(config, {
+                align: 'left',
+                text: 'Cancel'
+            });
+        }
+
+        return Ext.factory(config, 'Ext.Button', this.getCancelButton());
+    },
+
+    updateCancelButton: function(newCancelButton, oldCancelButton) {
+        var toolbar = this.getToolbar();
+
+        if (newCancelButton) {
+            toolbar.add(newCancelButton);
+            newCancelButton.on('tap', this.onCancelButtonTap, this);
+        } else if (oldCancelButton) {
+            toolbar.remove(oldCancelButton);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateUseTitles: function(useTitles) {
+        var innerItems = this.getInnerItems(),
+            ln = innerItems.length,
+            cls = Ext.baseCSSPrefix + 'use-titles',
+            i, innerItem;
+
+        //add a cls onto the picker
+        if (useTitles) {
+            this.addCls(cls);
+        } else {
+            this.removeCls(cls);
+        }
+
+        //show the time on each of the slots
+        for (i = 0; i < ln; i++) {
+            innerItem = innerItems[i];
+
+            if (innerItem.isSlot) {
+                innerItem.setShowTitle(useTitles);
+            }
+        }
+    },
+
+    applySlots: function(slots) {
+        //loop through each of the slots and add a reference to this picker
+        if (slots) {
+            var ln = slots.length,
+                i;
+
+            for (i = 0; i < ln; i++) {
+                slots[i].picker = this;
+            }
+        }
+
+        return slots;
+    },
+
+    /**
+     * Adds any new {@link #slots} to this picker, and removes existing {@link #slots}
+     * @private
+     */
+    updateSlots: function(newSlots) {
+        var bcss = Ext.baseCSSPrefix,
+            innerItems;
+
+        this.removeAll();
+
+        if (newSlots) {
+            this.add(newSlots);
+        }
+
+        innerItems = this.getInnerItems();
+        if (innerItems.length > 0) {
+            innerItems[0].addCls(bcss + 'first');
+            innerItems[innerItems.length - 1].addCls(bcss + 'last');
+        }
+
+        this.updateUseTitles(this.getUseTitles());
+    },
+
+    /**
+     * @private
+     * Called when the done button has been tapped.
+     */
+    onDoneButtonTap: function() {
+        var oldValue = this._value,
+            newValue = this.getValue(true);
+
+        if (newValue != oldValue) {
+            this.fireEvent('change', this, newValue);
+        }
+
+        this.hide();
+        Ext.util.InputBlocker.unblockInputs();
+    },
+
+    /**
+     * @private
+     * Called when the cancel button has been tapped.
+     */
+    onCancelButtonTap: function() {
+        this.fireEvent('cancel', this);
+        this.hide();
+        Ext.util.InputBlocker.unblockInputs();
+    },
+
+    /**
+     * @private
+     * Called when a slot has been picked.
+     */
+    onSlotPick: function(slot) {
+        this.fireEvent('pick', this, this.getValue(true), slot);
+    },
+
+    show: function() {
+        if (this.getParent() === undefined) {
+            Ext.Viewport.add(this);
+        }
+
+        this.callParent(arguments);
+
+        if (!this.isHidden()) {
+            this.setValue(this._value);
+        }
+        Ext.util.InputBlocker.blockInputs();
+    },
+
+    /**
+     * Sets the values of the pickers slots.
+     * @param {Object} values The values in a {name:'value'} format.
+     * @param {Boolean} animated `true` to animate setting the values.
+     * @return {Ext.Picker} this This picker.
+     */
+    setValue: function(values, animated) {
+        var me = this,
+            slots = me.getInnerItems(),
+            ln = slots.length,
+            key, slot, loopSlot, i, value;
+
+        if (!values) {
+            values = {};
+            for (i = 0; i < ln; i++) {
+                //set the value to false so the slot will return null when getValue is called
+                values[slots[i].config.name] = null;
+            }
+        }
+
+        for (key in values) {
+            slot = null;
+            value = values[key];
+            for (i = 0; i < slots.length; i++) {
+                loopSlot = slots[i];
+                if (loopSlot.config.name == key) {
+                    slot = loopSlot;
+                    break;
+                }
+            }
+
+            if (slot) {
+                if (animated) {
+                    slot.setValueAnimated(value);
+                } else {
+                    slot.setValue(value);
+                }
+            }
+        }
+
+        me._values = me._value = values;
+
+        return me;
+    },
+
+    setValueAnimated: function(values) {
+        this.setValue(values, true);
+    },
+
+    /**
+     * Returns the values of each of the pickers slots
+     * @return {Object} The values of the pickers slots
+     */
+    getValue: function(useDom) {
+        var values = {},
+            items = this.getItems().items,
+            ln = items.length,
+            item, i;
+
+        if (useDom) {
+            for (i = 0; i < ln; i++) {
+                item = items[i];
+                if (item && item.isSlot) {
+                    values[item.getName()] = item.getValue(useDom);
+                }
+            }
+
+            this._values = values;
+        }
+
+        return this._values;
+    },
+
+    /**
+     * Returns the values of each of the pickers slots.
+     * @return {Object} The values of the pickers slots.
+     */
+    getValues: function() {
+        return this.getValue();
+    },
+
+    destroy: function() {
+        this.callParent();
+        Ext.destroy(this.mask, this.bar);
+    }
+}, function() {
+});
+
+
+/**
+ * @aside guide forms
+ *
+ * Simple Select field wrapper. Example usage:
+ *
+ *     @example
+ *     Ext.create('Ext.form.Panel', {
+ *         fullscreen: true,
+ *         items: [
+ *             {
+ *                 xtype: 'fieldset',
+ *                 title: 'Select',
+ *                 items: [
+ *                     {
+ *                         xtype: 'selectfield',
+ *                         label: 'Choose one',
+ *                         options: [
+ *                             {text: 'First Option',  value: 'first'},
+ *                             {text: 'Second Option', value: 'second'},
+ *                             {text: 'Third Option',  value: 'third'}
+ *                         ]
+ *                     }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ */
+Ext.define('Ext.field.Select', {
+    extend:  Ext.field.Text ,
+    xtype: 'selectfield',
+    alternateClassName: 'Ext.form.Select',
+               
+                    
+                            
+                         
+                                
+                           
+      
+
+    /**
+     * @event change
+     * Fires when an option selection has changed
+     * @param {Ext.field.Select} this
+     * @param {Mixed} newValue The new value
+     * @param {Mixed} oldValue The old value
+     */
+
+    /**
+     * @event focus
+     * Fires when this field receives input focus. This happens both when you tap on the field and when you focus on the field by using
+     * 'next' or 'tab' on a keyboard.
+     *
+     * Please note that this event is not very reliable on Android. For example, if your Select field is second in your form panel,
+     * you cannot use the Next button to get to this select field. This functionality works as expected on iOS.
+     * @param {Ext.field.Select} this This field
+     * @param {Ext.event.Event} e
+     */
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        ui: 'select',
+
+        /**
+         * @cfg {Boolean} useClearIcon
+         * @hide
+         */
+
+        /**
+         * @cfg {String/Number} valueField The underlying {@link Ext.data.Field#name data value name} (or numeric Array index) to bind to this
+         * Select control.
+         * @accessor
+         */
+        valueField: 'value',
+
+        /**
+         * @cfg {String/Number} displayField The underlying {@link Ext.data.Field#name data value name} (or numeric Array index) to bind to this
+         * Select control. This resolved value is the visibly rendered value of the available selection options.
+         * @accessor
+         */
+        displayField: 'text',
+
+        /**
+         * @cfg {Ext.data.Store/Object/String} store The store to provide selection options data.
+         * Either a Store instance, configuration object or store ID.
+         * @accessor
+         */
+        store: null,
+
+        /**
+         * @cfg {Array} options An array of select options.
+         *
+         *     [
+         *         {text: 'First Option',  value: 'first'},
+         *         {text: 'Second Option', value: 'second'},
+         *         {text: 'Third Option',  value: 'third'}
+         *     ]
+         *
+         * __Note:__ Option object member names should correspond with defined {@link #valueField valueField} and {@link #displayField displayField} values.
+         * This config will be ignored if a {@link #store store} instance is provided.
+         * @accessor
+         */
+        options: null,
+
+        /**
+         * @cfg {String} hiddenName Specify a `hiddenName` if you're using the {@link Ext.form.Panel#standardSubmit standardSubmit} option.
+         * This name will be used to post the underlying value of the select to the server.
+         * @accessor
+         */
+        hiddenName: null,
+
+        /**
+         * @cfg {Object} component
+         * @accessor
+         * @hide
+         */
+        component: {
+            useMask: true
+        },
+
+        /**
+         * @cfg {Boolean} clearIcon
+         * @hide
+         * @accessor
+         */
+        clearIcon: false,
+
+        /**
+         * @cfg {String/Boolean} usePicker
+         * `true` if you want this component to always use a {@link Ext.picker.Picker}.
+         * `false` if you want it to use a popup overlay {@link Ext.List}.
+         * `auto` if you want to show a {@link Ext.picker.Picker} only on phones.
+         */
+        usePicker: 'auto',
+
+        /**
+         * @cfg {Boolean} autoSelect
+         * `true` to auto select the first value in the {@link #store} or {@link #options} when they are changed. Only happens when
+         * the {@link #value} is set to `null`.
+         */
+        autoSelect: true,
+
+        /**
+         * @cfg {Object} defaultPhonePickerConfig
+         * The default configuration for the picker component when you are on a phone.
+         */
+        defaultPhonePickerConfig: null,
+
+        /**
+         * @cfg {Object} defaultTabletPickerConfig
+         * The default configuration for the picker component when you are on a tablet.
+         */
+        defaultTabletPickerConfig: null,
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        name: 'picker',
+
+        /**
+         * @cfg {String} pickerSlotAlign
+         * The alignment of text in the picker created by this Select
+         * @private
+         */
+        pickerSlotAlign: 'center'
+    },
+
+    platformConfig: [
+        {
+            theme: ['Windows'],
+            pickerSlotAlign: 'left'
+        },
+        {
+            theme: ['Tizen'],
+            usePicker: false
+        }
+    ],
+
+    // @private
+    initialize: function() {
+        var me = this,
+            component = me.getComponent();
+
+        me.callParent();
+
+        component.on({
+            scope: me,
+            masktap: 'onMaskTap'
+        });
+
+        component.doMaskTap = Ext.emptyFn;
+
+        if (Ext.browser.is.AndroidStock2) {
+            component.input.dom.disabled = true;
+        }
+
+        if (Ext.theme.is.Blackberry) {
+            this.label.on({
+                scope: me,
+                tap: "onFocus"
+            });
+        }
+    },
+
+    getElementConfig: function() {
+        if (Ext.theme.is.Blackberry) {
+                var prefix = Ext.baseCSSPrefix;
+
+                return {
+                    reference: 'element',
+                    className: 'x-container',
+                    children: [
+                        {
+                            reference: 'innerElement',
+                            cls: prefix + 'component-outer',
+                            children: [
+                                {
+                                    reference: 'label',
+                                    cls: prefix + 'form-label',
+                                    children: [{
+                                        reference: 'labelspan',
+                                        tag: 'span'
+                                    }]
+                                }
+                            ]
+                        }
+                    ]
+                };
+        } else {
+            return this.callParent(arguments);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateDefaultPhonePickerConfig: function(newConfig) {
+        var picker = this.picker;
+        if (picker) {
+            picker.setConfig(newConfig);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateDefaultTabletPickerConfig: function(newConfig) {
+        var listPanel = this.listPanel;
+        if (listPanel) {
+            listPanel.setConfig(newConfig);
+        }
+    },
+
+    /**
+     * @private
+     * Checks if the value is `auto`. If it is, it only uses the picker if the current device type
+     * is a phone.
+     */
+    applyUsePicker: function(usePicker) {
+        if (usePicker == "auto") {
+            usePicker = (Ext.os.deviceType == 'Phone');
+        }
+
+        return Boolean(usePicker);
+    },
+
+    syncEmptyCls: Ext.emptyFn,
+
+    /**
+     * @private
+     */
+    applyValue: function(value) {
+        var record = value,
+            index, store;
+
+        //we call this so that the options configruation gets intiailized, so that a store exists, and we can
+        //find the correct value
+        this.getOptions();
+
+        store = this.getStore();
+
+        if ((value != undefined && !value.isModel) && store) {
+            index = store.find(this.getValueField(), value, null, null, null, true);
+
+            if (index == -1) {
+                index = store.find(this.getDisplayField(), value, null, null, null, true);
+            }
+
+            record = store.getAt(index);
+        }
+
+        return record;
+    },
+
+    updateValue: function(newValue, oldValue) {
+        this.record = newValue;
+
+        this.callParent([(newValue && newValue.isModel) ? newValue.get(this.getDisplayField()) : '']);
+    },
+
+    getValue: function() {
+        var record = this.record;
+        return (record && record.isModel) ? record.get(this.getValueField()) : null;
+    },
+
+    /**
+     * Returns the current selected {@link Ext.data.Model record} instance selected in this field.
+     * @return {Ext.data.Model} the record.
+     */
+    getRecord: function() {
+        return this.record;
+    },
+
+    // @private
+    getPhonePicker: function() {
+        var config = this.getDefaultPhonePickerConfig();
+
+        if (!this.picker) {
+            this.picker = Ext.create('Ext.picker.Picker', Ext.apply({
+                slots: [
+                    {
+                        align: this.getPickerSlotAlign(),
+                        name: this.getName(),
+                        valueField: this.getValueField(),
+                        displayField: this.getDisplayField(),
+                        value: this.getValue(),
+                        store: this.getStore()
+                    }
+                ],
+                listeners: {
+                    change: this.onPickerChange,
+                    scope: this
+                }
+            }, config));
+        }
+
+        return this.picker;
+    },
+
+    // @private
+    getTabletPicker: function() {
+        var config = this.getDefaultTabletPickerConfig();
+
+        if (!this.listPanel) {
+            this.listPanel = Ext.create('Ext.Panel', Ext.apply({
+                left: 0,
+                top: 0,
+                modal: true,
+                cls: Ext.baseCSSPrefix + 'select-overlay',
+                layout: 'fit',
+                hideOnMaskTap: true,
+                width: Ext.os.is.Phone ? '14em' : '18em',
+                height: (Ext.os.is.BlackBerry && Ext.os.version.getMajor() === 10) ? '12em' : (Ext.os.is.Phone ? '12.5em' : '22em'),
+                items: {
+                    xtype: 'list',
+                    store: this.getStore(),
+                    itemTpl: '<span class="x-list-label">{' + this.getDisplayField() + ':htmlEncode}</span>',
+                    listeners: {
+                        select: this.onListSelect,
+                        itemtap: this.onListTap,
+                        scope: this
+                    }
+                }
+            }, config));
+        }
+
+        return this.listPanel;
+    },
+
+    // @private
+    onMaskTap: function() {
+        this.onFocus();
+
+        return false;
+    },
+
+    /**
+     * Shows the picker for the select field, whether that is a {@link Ext.picker.Picker} or a simple
+     * {@link Ext.List list}.
+     */
+    showPicker: function() {
+        var me = this,
+            store = me.getStore(),
+            value = me.getValue();
+
+        //check if the store is empty, if it is, return
+        if (!store || store.getCount() === 0) {
+            return;
+        }
+
+        if (me.getReadOnly()) {
+            return;
+        }
+
+        me.isFocused = true;
+
+        if (me.getUsePicker()) {
+            var picker = me.getPhonePicker(),
+                name = me.getName(),
+                pickerValue = {};
+
+            pickerValue[name] = value;
+            picker.setValue(pickerValue);
+
+            if (!picker.getParent()) {
+                Ext.Viewport.add(picker);
+            }
+
+            picker.show();
+        } else {
+            var listPanel = me.getTabletPicker(),
+                list = listPanel.down('list'),
+                index, record;
+
+            if (!listPanel.getParent()) {
+                Ext.Viewport.add(listPanel);
+            }
+
+            listPanel.showBy(me.getComponent(), null);
+
+            if (value || me.getAutoSelect()) {
+                store = list.getStore();
+                index = store.find(me.getValueField(), value, null, null, null, true);
+                record = store.getAt(index);
+
+                if (record) {
+                    list.select(record, null, true);
+                }
+            }
+        }
+    },
+
+    // @private
+    onListSelect: function(item, record) {
+        var me = this;
+        if (record) {
+            me.setValue(record);
+        }
+    },
+
+    onListTap: function() {
+        this.listPanel.hide({
+            type: 'fade',
+            out: true,
+            scope: this
+        });
+    },
+
+    // @private
+    onPickerChange: function(picker, value) {
+        var me = this,
+            newValue = value[me.getName()],
+            store = me.getStore(),
+            index = store.find(me.getValueField(), newValue, null, null, null, true),
+            record = store.getAt(index);
+
+        me.setValue(record);
+    },
+
+    onChange: function(component, newValue, oldValue) {
+        var me = this,
+            store = me.getStore(),
+            index = (store) ? store.find(me.getDisplayField(), oldValue, null, null, null, true) : -1,
+            valueField = me.getValueField(),
+            record = (store) ? store.getAt(index) : null;
+
+        oldValue = (record) ? record.get(valueField) : null;
+
+        me.fireEvent('change', me, me.getValue(), oldValue);
+    },
+
+    /**
+     * Updates the underlying `<options>` list with new values.
+     *
+     * @param {Array} newOptions An array of options configurations to insert or append.
+     *
+     *     selectBox.setOptions([
+     *         {text: 'First Option',  value: 'first'},
+     *         {text: 'Second Option', value: 'second'},
+     *         {text: 'Third Option',  value: 'third'}
+     *     ]).setValue('third');
+     *
+     * __Note:__ option object member names should correspond with defined {@link #valueField valueField} and
+     * {@link #displayField displayField} values.
+     *
+     * @return {Ext.field.Select} this
+     */
+    updateOptions: function(newOptions) {
+        var store = this.getStore();
+
+        if (!store) {
+            this.setStore(true);
+            store = this._store;
+        }
+
+        if (!newOptions) {
+            store.clearData();
+        }
+        else {
+            store.setData(newOptions);
+            this.onStoreDataChanged(store);
+        }
+        return this;
+    },
+
+    applyStore: function(store) {
+        if (store === true) {
+            store = Ext.create('Ext.data.Store', {
+                fields: [this.getValueField(), this.getDisplayField()],
+                autoDestroy: true
+            });
+        }
+
+        if (store) {
+            store = Ext.data.StoreManager.lookup(store);
+
+            store.on({
+                scope: this,
+                addrecords: 'onStoreDataChanged',
+                removerecords: 'onStoreDataChanged',
+                updaterecord: 'onStoreDataChanged',
+                refresh: 'onStoreDataChanged'
+            });
+        }
+
+        return store;
+    },
+
+    updateStore: function(newStore) {
+        if (newStore) {
+            this.onStoreDataChanged(newStore);
+        }
+
+        if (this.getUsePicker() && this.picker) {
+            this.picker.down('pickerslot').setStore(newStore);
+        } else if (this.listPanel) {
+            this.listPanel.down('dataview').setStore(newStore);
+        }
+    },
+
+    /**
+     * Called when the internal {@link #store}'s data has changed.
+     */
+    onStoreDataChanged: function(store) {
+        var initialConfig = this.getInitialConfig(),
+            value = this.getValue();
+
+        if (value || value == 0) {
+            this.updateValue(this.applyValue(value));
+        }
+
+        if (this.getValue() === null) {
+            if (initialConfig.hasOwnProperty('value')) {
+                this.setValue(initialConfig.value);
+            }
+
+            if (this.getValue() === null && this.getAutoSelect()) {
+                if (store.getCount() > 0) {
+                    this.setValue(store.getAt(0));
+                }
+            }
+        }
+    },
+
+    /**
+     * @private
+     */
+    doSetDisabled: function(disabled) {
+        var component = this.getComponent();
+        if (component) {
+            component.setDisabled(disabled);
+        }
+        Ext.Component.prototype.doSetDisabled.apply(this, arguments);
+    },
+
+    /**
+     * @private
+     */
+    setDisabled: function() {
+        Ext.Component.prototype.setDisabled.apply(this, arguments);
+    },
+
+    // @private
+    updateLabelWidth: function() {
+        if (Ext.theme.is.Blackberry) {
+            return;
+        } else {
+            this.callParent(arguments);
+        }
+    },
+
+    // @private
+    updateLabelAlign: function() {
+        if (Ext.theme.is.Blackberry) {
+            return;
+        } else {
+            this.callParent(arguments);
+        }
+    },
+
+    /**
+     * Resets the Select field to the value of the first record in the store.
+     * @return {Ext.field.Select} this
+     * @chainable
+     */
+    reset: function() {
+        var store = this.getStore(),
+            record = (this.originalValue) ? this.originalValue : store.getAt(0);
+
+        if (store && record) {
+            this.setValue(record);
+        }
+
+        return this;
+    },
+
+    onFocus: function(e) {
+        if (this.getDisabled()) {
+            return false;
+        }
+
+        var component = this.getComponent();
+        this.fireEvent('focus', this, e);
+
+        if (Ext.os.is.Android4) {
+            component.input.dom.focus();
+        }
+        component.input.dom.blur();
+
+        this.isFocused = true;
+
+        this.showPicker();
+    },
+
+    destroy: function() {
+        this.callParent(arguments);
+        var store = this.getStore();
+
+        if (store && store.getAutoDestroy()) {
+            Ext.destroy(store);
+        }
+
+        Ext.destroy(this.listPanel, this.picker);
+    }
+});
+
+/**
+ * A date picker component which shows a Date Picker on the screen. This class extends from {@link Ext.picker.Picker}
+ * and {@link Ext.Sheet} so it is a popup.
+ *
+ * This component has no required configurations.
+ *
+ * ## Examples
+ *
+ *     @example miniphone preview
+ *     var datePicker = Ext.create('Ext.picker.Date');
+ *     Ext.Viewport.add(datePicker);
+ *     datePicker.show();
+ *
+ * You may want to adjust the {@link #yearFrom} and {@link #yearTo} properties:
+ *
+ *     @example miniphone preview
+ *     var datePicker = Ext.create('Ext.picker.Date', {
+ *         yearFrom: 2000,
+ *         yearTo  : 2015
+ *     });
+ *     Ext.Viewport.add(datePicker);
+ *     datePicker.show();
+ *
+ * You can set the value of the {@link Ext.picker.Date} to the current date using `new Date()`:
+ *
+ *     @example miniphone preview
+ *     var datePicker = Ext.create('Ext.picker.Date', {
+ *         value: new Date()
+ *     });
+ *     Ext.Viewport.add(datePicker);
+ *     datePicker.show();
+ *
+ * And you can hide the titles from each of the slots by using the {@link #useTitles} configuration:
+ *
+ *     @example miniphone preview
+ *     var datePicker = Ext.create('Ext.picker.Date', {
+ *         useTitles: false
+ *     });
+ *     Ext.Viewport.add(datePicker);
+ *     datePicker.show();
+ */
+Ext.define('Ext.picker.Date', {
+    extend:  Ext.picker.Picker ,
+    xtype: 'datepicker',
+    alternateClassName: 'Ext.DatePicker',
+                                                          
+
+    /**
+     * @event change
+     * Fired when the value of this picker has changed and the done button is pressed.
+     * @param {Ext.picker.Date} this This Picker
+     * @param {Date} value The date value
+     */
+
+    config: {
+        /**
+         * @cfg {Number} yearFrom
+         * The start year for the date picker. If {@link #yearFrom} is greater than
+         * {@link #yearTo} then the order of years will be reversed.
+         * @accessor
+         */
+        yearFrom: 1980,
+
+        /**
+         * @cfg {Number} [yearTo=new Date().getFullYear()]
+         * The last year for the date picker. If {@link #yearFrom} is greater than
+         * {@link #yearTo} then the order of years will be reversed.
+         * @accessor
+         */
+        yearTo: new Date().getFullYear(),
+
+        /**
+         * @cfg {String} monthText
+         * The label to show for the month column.
+         * @accessor
+         */
+        monthText: 'Month',
+
+        /**
+         * @cfg {String} dayText
+         * The label to show for the day column.
+         * @accessor
+         */
+        dayText: 'Day',
+
+        /**
+         * @cfg {String} yearText
+         * The label to show for the year column.
+         * @accessor
+         */
+        yearText: 'Year',
+
+        /**
+         * @cfg {Array} slotOrder
+         * An array of strings that specifies the order of the slots.
+         * @accessor
+         */
+        slotOrder: ['month', 'day', 'year'],
+
+        /**
+         * @cfg {Object/Date} value
+         * Default value for the field and the internal {@link Ext.picker.Date} component. Accepts an object of 'year',
+         * 'month' and 'day' values, all of which should be numbers, or a {@link Date}.
+         *
+         * Examples:
+         *
+         * - `{year: 1989, day: 1, month: 5}` = 1st May 1989
+         * - `new Date()` = current date
+         * @accessor
+         */
+
+        /**
+         * @cfg {Array} slots
+         * @hide
+         * @accessor
+         */
+
+        /**
+         * @cfg {String/Mixed} doneButton
+         * Can be either:
+         *
+         * - A {String} text to be used on the Done button.
+         * - An {Object} as config for {@link Ext.Button}.
+         * - `false` or `null` to hide it.
+         * @accessor
+         */
+        doneButton: true
+    },
+
+    platformConfig: [{
+        theme: ['Windows'],
+        doneButton: {
+            iconCls: 'check2',
+            ui: 'round',
+            text: ''
+        }
+    }],
+
+    initialize: function() {
+        this.callParent();
+
+        this.on({
+            scope: this,
+            delegate: '> slot',
+            slotpick: this.onSlotPick
+        });
+
+        this.on({
+            scope: this,
+            show: this.onSlotPick
+        });
+    },
+
+    setValue: function(value, animated) {
+        if (Ext.isDate(value)) {
+            value = {
+                day  : value.getDate(),
+                month: value.getMonth() + 1,
+                year : value.getFullYear()
+            };
+        }
+
+        this.callParent([value, animated]);
+        this.onSlotPick();
+    },
+
+    getValue: function(useDom) {
+        var values = {},
+            items = this.getItems().items,
+            ln = items.length,
+            daysInMonth, day, month, year, item, i;
+
+        for (i = 0; i < ln; i++) {
+            item = items[i];
+            if (item instanceof Ext.picker.Slot) {
+                values[item.getName()] = item.getValue(useDom);
+            }
+        }
+
+        //if all the slots return null, we should not return a date
+        if (values.year === null && values.month === null && values.day === null) {
+            return null;
+        }
+
+        year = Ext.isNumber(values.year) ? values.year : 1;
+        month = Ext.isNumber(values.month) ? values.month : 1;
+        day = Ext.isNumber(values.day) ? values.day : 1;
+
+        if (month && year && month && day) {
+            daysInMonth = this.getDaysInMonth(month, year);
+        }
+        day = (daysInMonth) ? Math.min(day, daysInMonth): day;
+
+        return new Date(year, month - 1, day);
+    },
+
+    /**
+     * Updates the yearFrom configuration
+     */
+    updateYearFrom: function() {
+        if (this.initialized) {
+            this.createSlots();
+        }
+    },
+
+    /**
+     * Updates the yearTo configuration
+     */
+    updateYearTo: function() {
+        if (this.initialized) {
+            this.createSlots();
+        }
+    },
+
+    /**
+     * Updates the monthText configuration
+     */
+    updateMonthText: function(newMonthText, oldMonthText) {
+        var innerItems = this.getInnerItems,
+            ln = innerItems.length,
+            item, i;
+
+        //loop through each of the current items and set the title on the correct slice
+        if (this.initialized) {
+            for (i = 0; i < ln; i++) {
+                item = innerItems[i];
+
+                if ((typeof item.title == "string" && item.title == oldMonthText) || (item.title.html == oldMonthText)) {
+                    item.setTitle(newMonthText);
+                }
+            }
+        }
+    },
+
+    /**
+     * Updates the {@link #dayText} configuration.
+     */
+    updateDayText: function(newDayText, oldDayText) {
+        var innerItems = this.getInnerItems,
+            ln = innerItems.length,
+            item, i;
+
+        //loop through each of the current items and set the title on the correct slice
+        if (this.initialized) {
+            for (i = 0; i < ln; i++) {
+                item = innerItems[i];
+
+                if ((typeof item.title == "string" && item.title == oldDayText) || (item.title.html == oldDayText)) {
+                    item.setTitle(newDayText);
+                }
+            }
+        }
+    },
+
+    /**
+     * Updates the yearText configuration
+     */
+    updateYearText: function(yearText) {
+        var innerItems = this.getInnerItems,
+            ln = innerItems.length,
+            item, i;
+
+        //loop through each of the current items and set the title on the correct slice
+        if (this.initialized) {
+            for (i = 0; i < ln; i++) {
+                item = innerItems[i];
+
+                if (item.title == this.yearText) {
+                    item.setTitle(yearText);
+                }
+            }
+        }
+    },
+
+    // @private
+    constructor: function() {
+        this.callParent(arguments);
+        this.createSlots();
+    },
+
+    /**
+     * Generates all slots for all years specified by this component, and then sets them on the component
+     * @private
+     */
+    createSlots: function() {
+        var me        = this,
+            slotOrder = me.getSlotOrder(),
+            yearsFrom = me.getYearFrom(),
+            yearsTo   = me.getYearTo(),
+            years     = [],
+            days      = [],
+            months    = [],
+            reverse   = yearsFrom > yearsTo,
+            ln, i, daysInMonth;
+
+        while (yearsFrom) {
+            years.push({
+                text  : yearsFrom,
+                value : yearsFrom
+            });
+
+            if (yearsFrom === yearsTo) {
+                break;
+            }
+
+            if (reverse) {
+                yearsFrom--;
+            } else {
+                yearsFrom++;
+            }
+        }
+
+        daysInMonth = me.getDaysInMonth(1, new Date().getFullYear());
+
+        for (i = 0; i < daysInMonth; i++) {
+            days.push({
+                text  : i + 1,
+                value : i + 1
+            });
+        }
+
+        for (i = 0, ln = Ext.Date.monthNames.length; i < ln; i++) {
+            months.push({
+                text  : Ext.Date.monthNames[i],
+                value : i + 1
+            });
+        }
+
+        var slots = [];
+
+        slotOrder.forEach(function (item) {
+            slots.push(me.createSlot(item, days, months, years));
+        });
+
+        me.setSlots(slots);
+    },
+
+    /**
+     * Returns a slot config for a specified date.
+     * @private
+     */
+    createSlot: function(name, days, months, years) {
+        switch (name) {
+            case 'year':
+                return {
+                    name: 'year',
+                    align: 'center',
+                    data: years,
+                    title: this.getYearText(),
+                    flex: 3
+                };
+            case 'month':
+                return {
+                    name: name,
+                    align: 'right',
+                    data: months,
+                    title: this.getMonthText(),
+                    flex: 4
+                };
+            case 'day':
+                return {
+                    name: 'day',
+                    align: 'center',
+                    data: days,
+                    title: this.getDayText(),
+                    flex: 2
+                };
+        }
+    },
+
+    onSlotPick: function() {
+        var value = this.getValue(true),
+            slot = this.getDaySlot(),
+            year = value.getFullYear(),
+            month = value.getMonth(),
+            days = [],
+            daysInMonth, i;
+
+        if (!value || !Ext.isDate(value) || !slot) {
+            return;
+        }
+
+        this.callParent(arguments);
+
+        //get the new days of the month for this new date
+        daysInMonth = this.getDaysInMonth(month + 1, year);
+        for (i = 0; i < daysInMonth; i++) {
+            days.push({
+                text: i + 1,
+                value: i + 1
+            });
+        }
+
+        // We don't need to update the slot days unless it has changed
+        if (slot.getStore().getCount() == days.length) {
+            return;
+        }
+
+        slot.getStore().setData(days);
+
+        // Now we have the correct amount of days for the day slot, lets update it
+        var store = slot.getStore(),
+            viewItems = slot.getViewItems(),
+            valueField = slot.getValueField(),
+            index, item;
+
+        index = store.find(valueField, value.getDate());
+        if (index == -1) {
+            return;
+        }
+
+        item = Ext.get(viewItems[index]);
+
+        slot.selectedIndex = index;
+        slot.scrollToItem(item);
+        slot.setValue(slot.getValue(true));
+    },
+
+    getDaySlot: function() {
+        var innerItems = this.getInnerItems(),
+            ln = innerItems.length,
+            i, slot;
+
+        if (this.daySlot) {
+            return this.daySlot;
+        }
+
+        for (i = 0; i < ln; i++) {
+            slot = innerItems[i];
+            if (slot.isSlot && slot.getName() == "day") {
+                this.daySlot = slot;
+                return slot;
+            }
+        }
+
+        return null;
+    },
+
+    // @private
+    getDaysInMonth: function(month, year) {
+        var daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        return month == 2 && this.isLeapYear(year) ? 29 : daysInMonth[month-1];
+    },
+
+    // @private
+    isLeapYear: function(year) {
+        return !!((year & 3) === 0 && (year % 100 || (year % 400 === 0 && year)));
+    },
+
+    onDoneButtonTap: function() {
+        var oldValue = this._value,
+            newValue = this.getValue(true),
+            testValue = newValue;
+
+        if (Ext.isDate(newValue)) {
+            testValue = newValue.toDateString();
+        }
+        if (Ext.isDate(oldValue)) {
+            oldValue = oldValue.toDateString();
+        }
+
+        if (testValue != oldValue) {
+            this.fireEvent('change', this, newValue);
+        }
+
+        this.hide();
+        Ext.util.InputBlocker.unblockInputs();
+    }
+});
+
+/**
+ * @aside guide forms
+ *
+ * This is a specialized field which shows a {@link Ext.picker.Date} when tapped. If it has a predefined value,
+ * or a value is selected in the {@link Ext.picker.Date}, it will be displayed like a normal {@link Ext.field.Text}
+ * (but not selectable/changable).
+ *
+ *     Ext.create('Ext.field.DatePicker', {
+ *         label: 'Birthday',
+ *         value: new Date()
+ *     });
+ *
+ * {@link Ext.field.DatePicker} fields are very simple to implement, and have no required configurations.
+ *
+ * ## Examples
+ *
+ * It can be very useful to set a default {@link #value} configuration on {@link Ext.field.DatePicker} fields. In
+ * this example, we set the {@link #value} to be the current date. You can also use the {@link #setValue} method to
+ * update the value at any time.
+ *
+ *     @example miniphone preview
+ *     Ext.create('Ext.form.Panel', {
+ *         fullscreen: true,
+ *         items: [
+ *             {
+ *                 xtype: 'fieldset',
+ *                 items: [
+ *                     {
+ *                         xtype: 'datepickerfield',
+ *                         label: 'Birthday',
+ *                         name: 'birthday',
+ *                         value: new Date()
+ *                     }
+ *                 ]
+ *             },
+ *             {
+ *                 xtype: 'toolbar',
+ *                 docked: 'bottom',
+ *                 items: [
+ *                     { xtype: 'spacer' },
+ *                     {
+ *                         text: 'setValue',
+ *                         handler: function() {
+ *                             var datePickerField = Ext.ComponentQuery.query('datepickerfield')[0];
+ *
+ *                             var randomNumber = function(from, to) {
+ *                                 return Math.floor(Math.random() * (to - from + 1) + from);
+ *                             };
+ *
+ *                             datePickerField.setValue({
+ *                                 month: randomNumber(0, 11),
+ *                                 day  : randomNumber(0, 28),
+ *                                 year : randomNumber(1980, 2011)
+ *                             });
+ *                         }
+ *                     },
+ *                     { xtype: 'spacer' }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *
+ * When you need to retrieve the date from the {@link Ext.field.DatePicker}, you can either use the {@link #getValue} or
+ * {@link #getFormattedValue} methods:
+ *
+ *     @example preview
+ *     Ext.create('Ext.form.Panel', {
+ *         fullscreen: true,
+ *         items: [
+ *             {
+ *                 xtype: 'fieldset',
+ *                 items: [
+ *                     {
+ *                         xtype: 'datepickerfield',
+ *                         label: 'Birthday',
+ *                         name: 'birthday',
+ *                         value: new Date()
+ *                     }
+ *                 ]
+ *             },
+ *             {
+ *                 xtype: 'toolbar',
+ *                 docked: 'bottom',
+ *                 items: [
+ *                     {
+ *                         text: 'getValue',
+ *                         handler: function() {
+ *                             var datePickerField = Ext.ComponentQuery.query('datepickerfield')[0];
+ *                             Ext.Msg.alert(null, datePickerField.getValue());
+ *                         }
+ *                     },
+ *                     { xtype: 'spacer' },
+ *                     {
+ *                         text: 'getFormattedValue',
+ *                         handler: function() {
+ *                             var datePickerField = Ext.ComponentQuery.query('datepickerfield')[0];
+ *                             Ext.Msg.alert(null, datePickerField.getFormattedValue());
+ *                         }
+ *                     }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *
+ *
+ */
+Ext.define('Ext.field.DatePicker', {
+    extend:  Ext.field.Select ,
+    alternateClassName: 'Ext.form.DatePicker',
+    xtype: 'datepickerfield',
+               
+                          
+                        
+      
+
+    /**
+     * @event change
+     * Fires when a date is selected
+     * @param {Ext.field.DatePicker} this
+     * @param {Date} newDate The new date
+     * @param {Date} oldDate The old date
+     */
+
+    config: {
+        ui: 'select',
+
+        /**
+         * @cfg {Object/Ext.picker.Date} picker
+         * An object that is used when creating the internal {@link Ext.picker.Date} component or a direct instance of {@link Ext.picker.Date}.
+         * @accessor
+         */
+        picker: true,
+
+        /**
+         * @cfg {Boolean}
+         * @hide
+         * @accessor
+         */
+        clearIcon: false,
+
+        /**
+         * @cfg {Object/Date} value
+         * Default value for the field and the internal {@link Ext.picker.Date} component. Accepts an object of 'year',
+         * 'month' and 'day' values, all of which should be numbers, or a {@link Date}.
+         *
+         * Example: {year: 1989, day: 1, month: 5} = 1st May 1989 or new Date()
+         * @accessor
+         */
+
+        /**
+         * @cfg {Boolean} destroyPickerOnHide
+         * Whether or not to destroy the picker widget on hide. This save memory if it's not used frequently,
+         * but increase delay time on the next show due to re-instantiation.
+         * @accessor
+         */
+        destroyPickerOnHide: false,
+
+        /**
+         * @cfg {String} [dateFormat=Ext.util.Format.defaultDateFormat] The format to be used when displaying the date in this field.
+         * Accepts any valid date format. You can view formats over in the {@link Ext.Date} documentation.
+         */
+        dateFormat: null,
+
+        /**
+         * @cfg {Object}
+         * @hide
+         */
+        component: {
+            useMask: true
+        }
+    },
+
+    initialize: function() {
+        var me = this,
+            component = me.getComponent();
+
+        me.callParent();
+
+        component.on({
+            scope: me,
+            masktap: 'onMaskTap'
+        });
+
+
+        component.doMaskTap = Ext.emptyFn;
+
+        if (Ext.browser.is.AndroidStock2) {
+            component.input.dom.disabled = true;
+        }
+    },
+
+    syncEmptyCls: Ext.emptyFn,
+
+    applyValue: function(value) {
+        if (!Ext.isDate(value) && !Ext.isObject(value)) {
+            return null;
+        }
+
+        if (Ext.isObject(value)) {
+            return new Date(value.year, value.month - 1, value.day);
+        }
+
+        return value;
+    },
+
+    updateValue: function(newValue, oldValue) {
+        var me     = this,
+            picker = me._picker;
+
+        if (picker && picker.isPicker) {
+            picker.setValue(newValue);
+        }
+
+        // Ext.Date.format expects a Date
+        if (newValue !== null) {
+            me.getComponent().setValue(Ext.Date.format(newValue, me.getDateFormat() || Ext.util.Format.defaultDateFormat));
+        } else {
+            me.getComponent().setValue('');
+        }
+
+        if (newValue !== oldValue) {
+            me.fireEvent('change', me, newValue, oldValue);
+        }
+    },
+
+    /**
+     * Updates the date format in the field.
+     * @private
+     */
+    updateDateFormat: function(newDateFormat, oldDateFormat) {
+        var value = this.getValue();
+        if (newDateFormat != oldDateFormat && Ext.isDate(value)) {
+            this.getComponent().setValue(Ext.Date.format(value, newDateFormat || Ext.util.Format.defaultDateFormat));
+        }
+    },
+
+    /**
+     * Returns the {@link Date} value of this field.
+     * If you wanted a formatted date use the {@link #getFormattedValue} method.
+     * @return {Date} The date selected
+     */
+    getValue: function() {
+        if (this._picker && this._picker instanceof Ext.picker.Date) {
+            return this._picker.getValue();
+        }
+
+        return this._value;
+    },
+
+    /**
+     * Returns the value of the field formatted using the specified format. If it is not specified, it will default to
+     * {@link #dateFormat} and then {@link Ext.util.Format#defaultDateFormat}.
+     * @param {String} format The format to be returned.
+     * @return {String} The formatted date.
+     */
+    getFormattedValue: function(format) {
+        var value = this.getValue();
+        return (Ext.isDate(value)) ? Ext.Date.format(value, format || this.getDateFormat() || Ext.util.Format.defaultDateFormat) : value;
+    },
+
+    applyPicker: function(picker, pickerInstance) {
+        if (pickerInstance && pickerInstance.isPicker) {
+            picker = pickerInstance.setConfig(picker);
+        }
+
+        return picker;
+    },
+
+    getPicker: function() {
+        var picker = this._picker,
+            value = this.getValue();
+
+        if (picker && !picker.isPicker) {
+            picker = Ext.factory(picker, Ext.picker.Date);
+            if (value != null) {
+                picker.setValue(value);
+            }
+        }
+
+        picker.on({
+            scope: this,
+            change: 'onPickerChange',
+            hide  : 'onPickerHide'
+        });
+
+        this._picker = picker;
+
+        return picker;
+    },
+
+    /**
+     * @private
+     * Listener to the tap event of the mask element. Shows the internal DatePicker component when the button has been tapped.
+     */
+    onMaskTap: function() {
+        if (this.getDisabled()) {
+            return false;
+        }
+
+        this.onFocus();
+
+        return false;
+    },
+
+    /**
+     * Called when the picker changes its value.
+     * @param {Ext.picker.Date} picker The date picker.
+     * @param {Object} value The new value from the date picker.
+     * @private
+     */
+    onPickerChange: function(picker, value) {
+        var me = this,
+            oldValue = me.getValue();
+
+        me.setValue(value);
+        me.fireEvent('select', me, value);
+        me.onChange(me, value, oldValue);
+    },
+
+    /**
+     * Override this or change event will be fired twice. change event is fired in updateValue
+     * for this field. TOUCH-2861
+     */
+    onChange: Ext.emptyFn,
+
+    /**
+     * Destroys the picker when it is hidden, if
+     * {@link Ext.field.DatePicker#destroyPickerOnHide destroyPickerOnHide} is set to `true`.
+     * @private
+     */
+    onPickerHide: function() {
+        var me     = this,
+            picker = me.getPicker();
+
+        if (me.getDestroyPickerOnHide() && picker) {
+            picker.destroy();
+            me._picker = me.getInitialConfig().picker || true;
+        }
+    },
+
+    reset: function() {
+        this.setValue(this.originalValue);
+    },
+
+    onFocus: function(e) {
+        var component = this.getComponent();
+        this.fireEvent('focus', this, e);
+
+        if (Ext.os.is.Android4) {
+            component.input.dom.focus();
+        }
+        component.input.dom.blur();
+
+        if (this.getReadOnly()) {
+            return false;
+        }
+
+        this.isFocused = true;
+
+        this.getPicker().show();
+    },
+
+    // @private
+    destroy: function() {
+        var picker = this._picker;
+
+        if (picker && picker.isPicker) {
+            picker.destroy();
+        }
+
+        this.callParent(arguments);
+    }
+});
+
+/**
+ * @private
  */
 Ext.define('Ext.fx.runner.Css', {
     extend:  Ext.Evented ,
@@ -68057,2936 +73418,6 @@ Ext.define('Ext.log.writer.Console', {
             console[consoleMethod](message);
         }
     }
-});
-
-/**
- * This component is used in {@link Ext.navigation.View} to control animations in the toolbar. You should never need to
- * interact with the component directly, unless you are subclassing it.
- * @private
- * @author Robert Dougan <rob@sencha.com>
- */
-Ext.define('Ext.navigation.Bar', {
-    extend:  Ext.TitleBar ,
-
-               
-                     
-                    
-      
-
-    // @private
-    isToolbar: true,
-
-    config: {
-        /**
-         * @cfg
-         * @inheritdoc
-         */
-        baseCls: Ext.baseCSSPrefix + 'toolbar',
-
-        /**
-         * @cfg
-         * @inheritdoc
-         */
-        cls: Ext.baseCSSPrefix + 'navigation-bar',
-
-        /**
-         * @cfg {String} ui
-         * Style options for Toolbar. Either 'light' or 'dark'.
-         * @accessor
-         */
-        ui: 'dark',
-
-        /**
-         * @cfg {String} title
-         * The title of the toolbar. You should NEVER set this, it is used internally. You set the title of the
-         * navigation bar by giving a navigation views children a title configuration.
-         * @private
-         * @accessor
-         */
-        title: null,
-
-        /**
-         * @cfg
-         * @hide
-         * @accessor
-         */
-        defaultType: 'button',
-
-        /**
-         * @cfg
-         * @ignore
-         * @accessor
-         */
-        layout: {
-            type: 'hbox'
-        },
-
-        /**
-         * @cfg {Array/Object} items The child items to add to this NavigationBar. The {@link #cfg-defaultType} of
-         * a NavigationBar is {@link Ext.Button}, so you do not need to specify an `xtype` if you are adding
-         * buttons.
-         *
-         * You can also give items a `align` configuration which will align the item to the `left` or `right` of
-         * the NavigationBar.
-         * @hide
-         * @accessor
-         */
-
-        /**
-         * @cfg {String} defaultBackButtonText
-         * The text to be displayed on the back button if:
-         * a) The previous view does not have a title
-         * b) The {@link #useTitleForBackButtonText} configuration is true.
-         * @private
-         * @accessor
-         */
-        defaultBackButtonText: 'Back',
-
-        /**
-         * @cfg {Object} animation
-         * @private
-         * @accessor
-         */
-        animation: {
-            duration: 300
-        },
-
-        /**
-         * @cfg {Boolean} useTitleForBackButtonText
-         * Set to false if you always want to display the {@link #defaultBackButtonText} as the text
-         * on the back button. True if you want to use the previous views title.
-         * @private
-         * @accessor
-         */
-        useTitleForBackButtonText: null,
-
-        /**
-         * @cfg {Ext.navigation.View} view A reference to the navigation view this bar is linked to.
-         * @private
-         * @accessor
-         */
-        view: null,
-
-        /**
-         * @cfg {Boolean} androidAnimation Optionally enable CSS transforms on Android 2
-         * for NavigationBar animations.  Note that this may cause flickering if the
-         * NavigationBar is hidden.
-         * @accessor
-         */
-        android2Transforms: false,
-
-        /**
-         * @cfg {Ext.Button/Object} backButton The configuration for the back button
-         * @private
-         * @accessor
-         */
-        backButton: {
-            align: 'left',
-            ui: 'back',
-            hidden: true
-        }
-    },
-
-    platformConfig: [{
-        theme: ['Blackberry'],
-        animation: false
-    }],
-
-    /**
-     * @event back
-     * Fires when the back button was tapped.
-     * @param {Ext.navigation.Bar} this This bar
-     */
-
-    constructor: function(config) {
-        config = config || {};
-
-        if (!config.items) {
-            config.items = [];
-        }
-
-        this.backButtonStack = [];
-        this.activeAnimations = [];
-
-        this.callParent([config]);
-    },
-
-    /**
-     * @private
-     */
-    applyBackButton: function(config) {
-        return Ext.factory(config, Ext.Button, this.getBackButton());
-    },
-
-    /**
-     * @private
-     */
-    updateBackButton: function(newBackButton, oldBackButton) {
-        if (oldBackButton) {
-            this.remove(oldBackButton);
-        }
-
-        if (newBackButton) {
-            this.add(newBackButton);
-
-            newBackButton.on({
-                scope: this,
-                tap: this.onBackButtonTap
-            });
-        }
-    },
-
-    onBackButtonTap: function() {
-        this.fireEvent('back', this);
-    },
-
-    /**
-     * @private
-     */
-    updateView: function(newView) {
-        var me = this,
-            backButton = me.getBackButton(),
-            innerItems, i, backButtonText, item, title, titleText;
-
-        me.getItems();
-
-        if (newView) {
-            //update the back button stack with the current inner items of the view
-            innerItems = newView.getInnerItems();
-            for (i = 0; i < innerItems.length; i++) {
-                item = innerItems[i];
-                title = (item.getTitle) ? item.getTitle() : item.config.title;
-
-                me.backButtonStack.push(title || '&nbsp;');
-            }
-
-            titleText = me.getTitleText();
-
-            if (titleText === undefined) {
-                titleText = '';
-            }
-
-            me.setTitle(titleText);
-
-            backButtonText = me.getBackButtonText();
-            if (backButtonText) {
-                backButton.setText(backButtonText);
-                backButton.show();
-            }
-        }
-    },
-
-    /**
-     * @private
-     */
-    onViewAdd: function(view, item) {
-        var me = this,
-            backButtonStack = me.backButtonStack,
-            hasPrevious, title;
-
-        me.endAnimation();
-
-        title = (item.getTitle) ? item.getTitle() : item.config.title;
-
-        backButtonStack.push(title || '&nbsp;');
-        hasPrevious = backButtonStack.length > 1;
-
-        me.doChangeView(view, hasPrevious, false);
-    },
-
-    /**
-     * @private
-     */
-    onViewRemove: function(view) {
-        var me = this,
-            backButtonStack = me.backButtonStack,
-            hasPrevious;
-
-        me.endAnimation();
-        backButtonStack.pop();
-        hasPrevious = backButtonStack.length > 1;
-
-        me.doChangeView(view, hasPrevious, true);
-    },
-
-    /**
-     * @private
-     */
-    doChangeView: function(view, hasPrevious, reverse) {
-        var me = this,
-            leftBox = me.leftBox,
-            leftBoxElement = leftBox.element,
-            titleComponent = me.titleComponent,
-            titleElement = titleComponent.element,
-            backButton = me.getBackButton(),
-            titleText = me.getTitleText(),
-            backButtonText = me.getBackButtonText(),
-            animation = me.getAnimation() && view.getLayout().getAnimation(),
-            animated = animation && animation.isAnimation && view.isPainted(),
-            properties, leftGhost, titleGhost, leftProps, titleProps;
-
-        if (animated) {
-            leftGhost = me.createProxy(leftBox.element);
-            leftBoxElement.setStyle('opacity', '0');
-            backButton.setText(backButtonText);
-            backButton[hasPrevious ? 'show' : 'hide']();
-
-            titleGhost = me.createProxy(titleComponent.element.getParent());
-            titleElement.setStyle('opacity', '0');
-            me.setTitle(titleText);
-
-            properties = me.measureView(leftGhost, titleGhost, reverse);
-            leftProps = properties.left;
-            titleProps = properties.title;
-
-            me.isAnimating = true;
-            me.animate(leftBoxElement, leftProps.element);
-            me.animate(titleElement, titleProps.element, function() {
-                titleElement.setLeft(properties.titleLeft);
-                me.isAnimating = false;
-                me.refreshTitlePosition();
-            });
-
-            if (Ext.browser.is.AndroidStock2 && !this.getAndroid2Transforms()) {
-                leftGhost.ghost.destroy();
-                titleGhost.ghost.destroy();
-            }
-            else {
-                me.animate(leftGhost.ghost, leftProps.ghost);
-                me.animate(titleGhost.ghost, titleProps.ghost, function() {
-                    leftGhost.ghost.destroy();
-                    titleGhost.ghost.destroy();
-                });
-            }
-        }
-        else {
-            if (hasPrevious) {
-                backButton.setText(backButtonText);
-                backButton.show();
-            }
-            else {
-                backButton.hide();
-            }
-            me.setTitle(titleText);
-        }
-    },
-
-    /**
-     * Calculates and returns the position values needed for the back button when you are pushing a title.
-     * @private
-     */
-    measureView: function(oldLeft, oldTitle, reverse) {
-        var me = this,
-            barElement = me.element,
-            newLeftElement = me.leftBox.element,
-            titleElement = me.titleComponent.element,
-            minOffset = Math.min(barElement.getWidth() / 3, 200),
-            newLeftWidth = newLeftElement.getWidth(),
-            barX = barElement.getX(),
-            barWidth = barElement.getWidth(),
-            titleX = titleElement.getX(),
-            titleLeft = titleElement.getLeft(),
-            titleWidth = titleElement.getWidth(),
-            oldLeftX = oldLeft.x,
-            oldLeftWidth = oldLeft.width,
-            oldLeftLeft = oldLeft.left,
-            useLeft = Ext.browser.is.AndroidStock2 && !this.getAndroid2Transforms(),
-            newOffset, oldOffset, leftAnims, titleAnims, omega, theta;
-
-        theta = barX - oldLeftX - oldLeftWidth;
-        if (reverse) {
-            newOffset = theta;
-            oldOffset = Math.min(titleX - oldLeftWidth, minOffset);
-        }
-        else {
-            oldOffset = theta;
-            newOffset = Math.min(titleX - barX, minOffset);
-        }
-
-        if (useLeft) {
-            leftAnims = {
-                element: {
-                    from: {
-                        left: newOffset,
-                        opacity: 1
-                    },
-                    to: {
-                        left: 0,
-                        opacity: 1
-                    }
-                }
-            };
-        }
-        else {
-            leftAnims = {
-                element: {
-                    from: {
-                        transform: {
-                            translateX: newOffset
-                        },
-                        opacity: 0
-                    },
-                    to: {
-                        transform: {
-                            translateX: 0
-                        },
-                        opacity: 1
-                    }
-                },
-                ghost: {
-                    to: {
-                        transform: {
-                            translateX: oldOffset
-                        },
-                        opacity: 0
-                    }
-                }
-            };
-        }
-
-        theta = barX - titleX + newLeftWidth;
-        if ((oldLeftLeft + titleWidth) > titleX) {
-            omega = barX - titleX - titleWidth;
-        }
-
-        if (reverse) {
-            titleElement.setLeft(0);
-
-            oldOffset = barX + barWidth - titleX - titleWidth;
-
-            if (omega !== undefined) {
-                newOffset = omega;
-            }
-            else {
-                newOffset = theta;
-            }
-        }
-        else {
-            newOffset = barX + barWidth - titleX - titleWidth;
-
-            if (omega !== undefined) {
-                oldOffset = omega;
-            }
-            else {
-                oldOffset = theta;
-            }
-
-            newOffset = Math.max(titleLeft, newOffset);
-        }
-
-        if (useLeft) {
-            titleAnims = {
-                element: {
-                    from: {
-                        left: newOffset,
-                        opacity: 1
-                    },
-                    to: {
-                        left: titleLeft,
-                        opacity: 1
-                    }
-                }
-            };
-        }
-        else {
-            titleAnims = {
-                element: {
-                    from: {
-                        transform: {
-                            translateX: newOffset
-                        },
-                        opacity: 0
-                    },
-                    to: {
-                        transform: {
-                            translateX: titleLeft
-                        },
-                        opacity: 1
-                    }
-                },
-                ghost: {
-                    to: {
-                        transform: {
-                            translateX: oldOffset
-                        },
-                        opacity: 0
-                    }
-                }
-            };
-        }
-
-        return {
-            left: leftAnims,
-            title: titleAnims,
-            titleLeft: titleLeft
-        };
-    },
-
-    /**
-     * Helper method used to animate elements.
-     * You pass it an element, objects for the from and to positions an option onEnd callback called when the animation is over.
-     * Normally this method is passed configurations returned from the methods such as #measureTitle(true) etc.
-     * It is called from the #pushLeftBoxAnimated, #pushTitleAnimated, #popBackButtonAnimated and #popTitleAnimated
-     * methods.
-     *
-     * If the current device is Android, it will use top/left to animate.
-     * If it is anything else, it will use transform.
-     * @private
-     */
-    animate: function(element, config, callback) {
-        var me = this,
-            animation;
-
-        //reset the left of the element
-        element.setLeft(0);
-
-        config = Ext.apply(config, {
-            element: element,
-            easing: 'ease-in-out',
-            duration: me.getAnimation().duration || 250,
-            preserveEndState: true
-        });
-
-        animation = new Ext.fx.Animation(config);
-        animation.on('animationend', function() {
-            if (callback) {
-                callback.call(me);
-            }
-        }, me);
-
-        Ext.Animator.run(animation);
-        me.activeAnimations.push(animation);
-    },
-
-    endAnimation: function() {
-        var activeAnimations = this.activeAnimations,
-            animation, i, ln;
-
-        if (activeAnimations) {
-            ln = activeAnimations.length;
-            for (i = 0; i < ln; i++) {
-                animation = activeAnimations[i];
-                if (animation.isAnimating) {
-                    animation.stopAnimation();
-                }
-                else {
-                    animation.destroy();
-                }
-            }
-            this.activeAnimations = [];
-        }
-    },
-
-    refreshTitlePosition: function() {
-        if (!this.isAnimating) {
-            this.callParent();
-        }
-    },
-
-    /**
-     * Returns the text needed for the current back button at anytime.
-     * @private
-     */
-    getBackButtonText: function() {
-        var text = this.backButtonStack[this.backButtonStack.length - 2],
-            useTitleForBackButtonText = this.getUseTitleForBackButtonText();
-
-        if (!useTitleForBackButtonText) {
-            if (text) {
-                text = this.getDefaultBackButtonText();
-            }
-        }
-
-        return text;
-    },
-
-    /**
-     * Returns the text needed for the current title at anytime.
-     * @private
-     */
-    getTitleText: function() {
-        return this.backButtonStack[this.backButtonStack.length - 1];
-    },
-
-    /**
-     * Handles removing back button stacks from this bar
-     * @private
-     */
-    beforePop: function(count) {
-        count--;
-        for (var i = 0; i < count; i++) {
-            this.backButtonStack.pop();
-        }
-    },
-
-    /**
-     * We override the hidden method because we don't want to remove it from the view using display:none. Instead we just position it off
-     * the screen, much like the navigation bar proxy. This means that all animations, pushing, popping etc. all still work when if you hide/show
-     * this bar at any time.
-     * @private
-     */
-    doSetHidden: function(hidden) {
-        if (!hidden) {
-            this.element.setStyle({
-                position: 'relative',
-                top: 'auto',
-                left: 'auto',
-                width: 'auto'
-            });
-        } else {
-            this.element.setStyle({
-                position: 'absolute',
-                top: '-1000px',
-                left: '-1000px',
-                width: this.element.getWidth() + 'px'
-            });
-        }
-    },
-
-    /**
-     * Creates a proxy element of the passed element, and positions it in the same position, using absolute positioning.
-     * The createNavigationBarProxy method uses this to create proxies of the backButton and the title elements.
-     * @private
-     */
-    createProxy: function(element) {
-        var ghost, x, y, left, width;
-
-        ghost = element.dom.cloneNode(true);
-        ghost.id = element.id + '-proxy';
-
-        //insert it into the toolbar
-        element.getParent().dom.appendChild(ghost);
-
-        //set the x/y
-        ghost = Ext.get(ghost);
-        x = element.getX();
-        y = element.getY();
-        left = element.getLeft();
-        width = element.getWidth();
-        ghost.setStyle('position', 'absolute');
-        ghost.setX(x);
-        ghost.setY(y);
-        ghost.setHeight(element.getHeight());
-        ghost.setWidth(width);
-
-        return {
-            x: x,
-            y: y,
-            left: left,
-            width: width,
-            ghost: ghost
-        };
-    }
-});
-
-/**
- * @author Robert Dougan <rob@sencha.com>
- *
- * NavigationView is basically a {@link Ext.Container} with a {@link Ext.layout.Card card} layout, so only one view
- * can be visible at a time. However, NavigationView also adds extra functionality on top of this to allow
- * you to `push` and `pop` views at any time. When you do this, your NavigationView will automatically animate
- * between your current active view, and the new view you want to `push`, or the previous view you want to `pop`.
- *
- * Using the NavigationView is very simple. Here is a basic example of it in action:
- *
- *     @example
- *     var view = Ext.create('Ext.NavigationView', {
- *         fullscreen: true,
- *
- *         items: [{
- *             title: 'First',
- *             items: [{
- *                 xtype: 'button',
- *                 text: 'Push a new view!',
- *                 handler: function() {
- *                     // use the push() method to push another view. It works much like
- *                     // add() or setActiveItem(). it accepts a view instance, or you can give it
- *                     // a view config.
- *                     view.push({
- *                         title: 'Second',
- *                         html: 'Second view!'
- *                     });
- *                 }
- *             }]
- *         }]
- *     });
- *
- * Now, here comes the fun part: you can push any view/item into the NavigationView, at any time, and it will
- * automatically handle the animations between the two views, including adding a back button (if necessary)
- * and showing the new title.
- *
- *     view.push({
- *         title: 'A new view',
- *         html: 'Some new content'
- *     });
- *
- * As you can see, it is as simple as calling the {@link #method-push} method, with a new view (instance or object). Done.
- *
- * You can also `pop` a view at any time. This will remove the top-most view from the NavigationView, and animate back
- * to the previous view. You can do this using the {@link #method-pop} method (which requires no arguments).
- *
- *     view.pop();
- *
- *  Applications that need compatibility with ##Older Android## devices will want to see the {@link #layout} config for details on
- *  disabling navigation view animations as these devices have poor animation support and performance.
- *
- * @aside guide navigation_view
- */
-Ext.define('Ext.navigation.View', {
-    extend:  Ext.Container ,
-    alternateClassName: 'Ext.NavigationView',
-    xtype: 'navigationview',
-                                     
-
-    config: {
-        /**
-         * @cfg
-         * @inheritdoc
-         */
-        baseCls: Ext.baseCSSPrefix + 'navigationview',
-
-        /**
-         * @cfg {Boolean/Object} navigationBar
-         * The NavigationBar used in this navigation view. It defaults to be docked to the top.
-         *
-         * You can just pass in a normal object if you want to customize the NavigationBar. For example:
-         *
-         *     navigationBar: {
-         *         ui: 'dark',
-         *         docked: 'bottom'
-         *     }
-         *
-         * You **cannot** specify a *title* property in this configuration. The title of the navigationBar is taken
-         * from the configuration of this views children:
-         *
-         *     view.push({
-         *         title: 'This views title which will be shown in the navigation bar',
-         *         html: 'Some HTML'
-         *     });
-         *
-         * @accessor
-         */
-        navigationBar: {
-            docked: 'top'
-        },
-
-        /**
-         * @cfg {String} defaultBackButtonText
-         * The text to be displayed on the back button if:
-         *
-         * - The previous view does not have a title.
-         * - The {@link #useTitleForBackButtonText} configuration is `true`.
-         * @accessor
-         */
-        defaultBackButtonText: 'Back',
-
-        /**
-         * @cfg {Boolean} useTitleForBackButtonText
-         * Set to `false` if you always want to display the {@link #defaultBackButtonText} as the text
-         * on the back button. `true` if you want to use the previous views title.
-         * @accessor
-         */
-        useTitleForBackButtonText: false,
-
-        /**
-         * @cfg {Array/Object} items The child items to add to this NavigationView. This is usually an array of Component
-         * configurations or instances, for example:
-         *
-         *     Ext.create('Ext.Container', {
-         *         items: [
-         *             {
-         *                 xtype: 'panel',
-         *                 title: 'My title',
-         *                 html: 'This is an item'
-         *             }
-         *         ]
-         *     });
-         *
-         * If you want a title to be displayed in the {@link #navigationBar}, you must specify a `title` configuration in your
-         * view, like above.
-         *
-         * __Note:__ Only one view will be visible at a time. If you want to change to another view, use the {@link #method-push} or
-         * {@link #setActiveItem} methods.
-         * @accessor
-         */
-
-        /**
-         * @cfg {Object}
-         * Layout used in this navigation view, type must be set to 'card'.
-         * **Android NOTE:** Older Android devices have poor animation performance. It is recommended to set the animation to null, for example:
-         *
-         *      layout: {
-         *          type: 'card',
-         *          animation: null
-         *      }
-         *
-         * @accessor
-         */
-        layout: {
-            type: 'card',
-            animation: {
-                duration: 300,
-                easing: 'ease-out',
-                type: 'slide',
-                direction: 'left'
-            }
-        }
-    },
-
-    /**
-     * @event push
-     * Fires when a view is pushed into this navigation view
-     * @param {Ext.navigation.View} this The component instance
-     * @param {Mixed} view The view that has been pushed
-     */
-
-    /**
-     * @event pop
-     * Fires when a view is popped from this navigation view
-     * @param {Ext.navigation.View} this The component instance
-     * @param {Mixed} view The view that has been popped
-     */
-
-    /**
-     * @event back
-     * Fires when the back button in the navigation view was tapped.
-     * @param {Ext.navigation.View} this The component instance\
-     */
-
-    platformConfig: [{
-        theme: ['Blackberry'],
-        navigationBar: {
-            splitNavigation: true
-        }
-    }],
-
-    // @private
-    initialize: function() {
-        var me     = this,
-            navBar = me.getNavigationBar();
-
-        //add a listener onto the back button in the navigationbar
-        if (navBar) {
-            navBar.on({
-                back: me.onBackButtonTap,
-                scope: me
-            });
-
-            me.relayEvents(navBar, 'rightbuttontap');
-
-            me.relayEvents(me, {
-                add: 'push',
-                remove: 'pop'
-            });
-        }
-
-        var layout = me.getLayout();
-        if (layout && !layout.isCard) {
-            Ext.Logger.error('The base layout for a NavigationView must always be a Card Layout');
-        }
-    },
-
-    /**
-     * @private
-     */
-    applyLayout: function(config) {
-        config = config || {};
-
-        return config;
-    },
-
-    /**
-     * @private
-     * Called when the user taps on the back button
-     */
-    onBackButtonTap: function() {
-        this.pop();
-        this.fireEvent('back', this);
-    },
-
-    /**
-     * Pushes a new view into this navigation view using the default animation that this view has.
-     * @param {Object} view The view to push.
-     * @return {Ext.Component} The new item you just pushed.
-     */
-    push: function(view) {
-        return this.add(view);
-    },
-
-    /**
-     * Removes the current active view from the stack and sets the previous view using the default animation
-     * of this view. You can also pass a {@link Ext.ComponentQuery} selector to target what inner item to pop to.
-     * @param {Number/String/Object} count If a Number, the number of views you want to pop. If a String, the pops to a matching
-     * component query. If an Object, the pops to a matching view instance.
-     * @return {Ext.Component} The new active item
-     */
-    pop: function(count) {
-        if (this.beforePop(count)) {
-            return this.doPop();
-        }
-    },
-
-    /**
-     * @private
-     * Calculates whether it needs to remove any items from the stack when you are popping more than 1
-     * item. If it does, it removes those views from the stack and returns `true`.
-     * @return {Boolean} `true` if it has removed views.
-     */
-    beforePop: function(count) {
-        var me = this,
-            innerItems = me.getInnerItems();
-
-        if (Ext.isString(count) || Ext.isObject(count)) {
-            var last = innerItems.length - 1,
-                i;
-
-            for (i = last; i >= 0; i--) {
-                if ((Ext.isString(count) && Ext.ComponentQuery.is(innerItems[i], count)) || (Ext.isObject(count) && count == innerItems[i])) {
-                    count = last - i;
-                    break;
-                }
-            }
-
-            if (!Ext.isNumber(count)) {
-                return false;
-            }
-        }
-
-        var ln = innerItems.length,
-            toRemove;
-
-        //default to 1 pop
-        if (!Ext.isNumber(count) || count < 1) {
-            count = 1;
-        }
-
-        //check if we are trying to remove more items than we have
-        count = Math.min(count, ln - 1);
-
-        if (count) {
-            //we need to reset the backButtonStack in the navigation bar
-            me.getNavigationBar().beforePop(count);
-
-            //get the items we need to remove from the view and remove theme
-            toRemove = innerItems.splice(-count, count - 1);
-            for (i = 0; i < toRemove.length; i++) {
-                this.remove(toRemove[i]);
-            }
-
-            return true;
-        }
-
-        return false;
-    },
-
-    /**
-     * @private
-     */
-    doPop: function() {
-        var me = this,
-            innerItems = this.getInnerItems();
-
-        //set the new active item to be the new last item of the stack
-        me.remove(innerItems[innerItems.length - 1]);
-
-        // Hide the backButton
-        if (innerItems.length < 3 && this.$backButton) {
-            this.$backButton.hide();
-        }
-
-        // Update the title container
-        if (this.$titleContainer) {
-            if (!this.$titleContainer.setTitle) {
-                Ext.Logger.error('You have selected to display a title in a component that does not \
-                    support titles in NavigationView. Please remove the `title` configuration from your \
-                    NavigationView item, or change it to a component that has a `setTitle` method.');
-            }
-
-            var item = innerItems[innerItems.length - 2];
-            this.$titleContainer.setTitle((item.getTitle) ? item.getTitle() : item.config.title);
-        }
-
-        return this.getActiveItem();
-    },
-
-    /**
-     * Returns the previous item, if one exists.
-     * @return {Mixed} The previous view
-     */
-    getPreviousItem: function() {
-        var innerItems = this.getInnerItems();
-        return innerItems[innerItems.length - 2];
-    },
-
-    /**
-     * Updates the backbutton text accordingly in the {@link #navigationBar}
-     * @private
-     */
-    updateUseTitleForBackButtonText: function(useTitleForBackButtonText) {
-        var navigationBar = this.getNavigationBar();
-        if (navigationBar) {
-            navigationBar.setUseTitleForBackButtonText(useTitleForBackButtonText);
-        }
-    },
-
-    /**
-     * Updates the backbutton text accordingly in the {@link #navigationBar}
-     * @private
-     */
-    updateDefaultBackButtonText: function(defaultBackButtonText) {
-        var navigationBar = this.getNavigationBar();
-        if (navigationBar) {
-            navigationBar.setDefaultBackButtonText(defaultBackButtonText);
-        }
-    },
-
-    // @private
-    applyNavigationBar: function(config) {
-        if (!config) {
-            config = {
-                hidden: true,
-                docked: 'top'
-            };
-        }
-
-        if (config.title) {
-            delete config.title;
-            Ext.Logger.warn("Ext.navigation.View: The 'navigationBar' configuration does not accept a 'title' property. You " +
-                            "set the title of the navigationBar by giving this navigation view's children a 'title' property.");
-        }
-
-        config.view = this;
-        config.useTitleForBackButtonText = this.getUseTitleForBackButtonText();
-
-        if (config.splitNavigation) {
-            this.$titleContainer = this.add({
-                docked: 'top',
-                xtype: 'titlebar',
-                ui: 'light',
-                title: this.$currentTitle || ''
-            });
-
-            var containerConfig = (config.splitNavigation === true) ? {} : config.splitNavigation;
-
-            this.$backButtonContainer = this.add(Ext.apply({
-                xtype: 'toolbar',
-                docked: 'bottom'
-            }, containerConfig));
-
-            this.$backButton = this.$backButtonContainer.add({
-                xtype: 'button',
-                text: 'Back',
-                hidden: true,
-                ui: 'back'
-            });
-
-            this.$backButton.on({
-                scope: this,
-                tap: this.onBackButtonTap
-            });
-
-            config = {
-                hidden: true,
-                docked: 'top'
-            };
-        }
-
-        return Ext.factory(config, Ext.navigation.Bar, this.getNavigationBar());
-    },
-
-    // @private
-    updateNavigationBar: function(newNavigationBar, oldNavigationBar) {
-        if (oldNavigationBar) {
-            this.remove(oldNavigationBar, true);
-        }
-
-        if (newNavigationBar) {
-            this.add(newNavigationBar);
-        }
-    },
-
-    /**
-     * @private
-     */
-    applyActiveItem: function(activeItem, currentActiveItem) {
-        var me = this,
-            innerItems = me.getInnerItems();
-
-        // Make sure the items are already initialized
-        me.getItems();
-
-        // If we are not initialzed yet, we should set the active item to the last item in the stack
-        if (!me.initialized) {
-            activeItem = innerItems.length - 1;
-        }
-
-        return this.callParent([activeItem, currentActiveItem]);
-    },
-
-    doResetActiveItem: function(innerIndex) {
-        var me = this,
-            innerItems = me.getInnerItems(),
-            animation = me.getLayout().getAnimation();
-
-        if (innerIndex > 0) {
-            if (animation && animation.isAnimation) {
-                animation.setReverse(true);
-            }
-            me.setActiveItem(innerIndex - 1);
-            me.getNavigationBar().onViewRemove(me, innerItems[innerIndex], innerIndex);
-        }
-    },
-
-    /**
-     * @private
-     */
-    doRemove: function() {
-        var animation = this.getLayout().getAnimation();
-
-        if (animation && animation.isAnimation) {
-            animation.setReverse(false);
-        }
-
-        this.callParent(arguments);
-    },
-
-    /**
-     * @private
-     */
-    onItemAdd: function(item, index) {
-
-        // Check for title configuration
-        if (item && item.getDocked() && item.config.title === true) {
-            this.$titleContainer = item;
-        }
-
-        this.doItemLayoutAdd(item, index);
-
-        var navigaitonBar = this.getInitialConfig().navigationBar;
-
-        if (!this.isItemsInitializing && item.isInnerItem()) {
-            this.setActiveItem(item);
-
-            // Update the navigationBar
-            if (navigaitonBar) {
-                this.getNavigationBar().onViewAdd(this, item, index);
-            }
-
-            // Update the custom backButton
-            if (this.$backButtonContainer) {
-                this.$backButton.show();
-            }
-        }
-
-        if (item && item.isInnerItem()) {
-            // Update the title container title
-            this.updateTitleContainerTitle((item.getTitle) ? item.getTitle() : item.config.title);
-        }
-
-        if (this.initialized) {
-            this.fireEvent('add', this, item, index);
-        }
-    },
-
-    /**
-     * @private
-     * Updates the title of the titleContainer, if it exists
-     */
-    updateTitleContainerTitle: function(title) {
-        if (this.$titleContainer) {
-            if (!this.$titleContainer.setTitle) {
-                Ext.Logger.error('You have selected to display a title in a component that does not \
-                    support titles in NavigationView. Please remove the `title` configuration from your \
-                    NavigationView item, or change it to a component that has a `setTitle` method.');
-            }
-
-            this.$titleContainer.setTitle(title);
-        }
-        else {
-            this.$currentTitle = title;
-        }
-    },
-
-    /**
-     * Resets the view by removing all items between the first and last item.
-     * @return {Ext.Component} The view that is now active
-     */
-    reset: function() {
-        return this.pop(this.getInnerItems().length);
-    }
-});
-
-/**
- * Used in the {@link Ext.tab.Bar} component. This shouldn't be used directly, instead use
- * {@link Ext.tab.Bar} or {@link Ext.tab.Panel}.
- * @private
- */
-Ext.define('Ext.tab.Tab', {
-    extend:  Ext.Button ,
-    xtype: 'tab',
-    alternateClassName: 'Ext.Tab',
-
-    // @private
-    isTab: true,
-
-    config: {
-        /**
-         * @cfg baseCls
-         * @inheritdoc
-         */
-        baseCls: Ext.baseCSSPrefix + 'tab',
-
-        /**
-         * @cfg {String} pressedCls
-         * The CSS class to be applied to a Tab when it is pressed.
-         * Providing your own CSS for this class enables you to customize the pressed state.
-         * @accessor
-         */
-        pressedCls: Ext.baseCSSPrefix + 'tab-pressed',
-
-        /**
-         * @cfg {String} activeCls
-         * The CSS class to be applied to a Tab when it is active.
-         * Providing your own CSS for this class enables you to customize the active state.
-         * @accessor
-         */
-        activeCls: Ext.baseCSSPrefix + 'tab-active',
-
-        /**
-         * @cfg {Boolean} active
-         * Set this to `true` to have the tab be active by default.
-         * @accessor
-         */
-        active: false,
-
-        /**
-         * @cfg {String} title
-         * The title of the card that this tab is bound to.
-         * @accessor
-         */
-        title: '&nbsp;'
-    },
-
-    updateIconCls : function(newCls, oldCls) {
-        this.callParent([newCls, oldCls]);
-
-        if (oldCls) {
-            this.removeCls('x-tab-icon');
-        }
-
-        if (newCls) {
-            this.addCls('x-tab-icon');
-        }
-    },
-
-    /**
-     * @event activate
-     * Fires when a tab is activated
-     * @param {Ext.tab.Tab} this
-     */
-
-    /**
-     * @event deactivate
-     * Fires when a tab is deactivated
-     * @param {Ext.tab.Tab} this
-     */
-
-    updateTitle: function(title) {
-        this.setText(title);
-    },
-
-    updateActive: function(active, oldActive) {
-        var activeCls = this.getActiveCls();
-        if (active && !oldActive) {
-            this.element.addCls(activeCls);
-            this.fireEvent('activate', this);
-        } else if (oldActive) {
-            this.element.removeCls(activeCls);
-            this.fireEvent('deactivate', this);
-        }
-    }
-}, function() {
-    this.override({
-        activate: function() {
-            this.setActive(true);
-        },
-
-        deactivate: function() {
-            this.setActive(false);
-        }
-    });
-});
-
-/**
- * Ext.tab.Bar is used internally by {@link Ext.tab.Panel} to create the bar of tabs that appears at the top of the tab
- * panel. It's unusual to use it directly, instead see the {@link Ext.tab.Panel tab panel docs} for usage instructions.
- *
- * Used in the {@link Ext.tab.Panel} component to display {@link Ext.tab.Tab} components.
- *
- * @private
- */
-Ext.define('Ext.tab.Bar', {
-    extend:  Ext.Toolbar ,
-    alternateClassName: 'Ext.TabBar',
-    xtype : 'tabbar',
-
-                              
-
-    config: {
-        /**
-         * @cfg baseCls
-         * @inheritdoc
-         */
-        baseCls: Ext.baseCSSPrefix + 'tabbar',
-
-        // @private
-        defaultType: 'tab',
-
-        // @private
-        layout: {
-            type: 'hbox',
-            align: 'middle'
-        }
-    },
-
-    eventedConfig: {
-        /**
-         * @cfg {Number/String/Ext.Component} activeTab
-         * The initially activated tab. Can be specified as numeric index,
-         * component ID or as the component instance itself.
-         * @accessor
-         * @evented
-         */
-        activeTab: null
-    },
-
-    /**
-     * @event tabchange
-     * Fired when active tab changes.
-     * @param {Ext.tab.Bar} this
-     * @param {Ext.tab.Tab} newTab The new Tab
-     * @param {Ext.tab.Tab} oldTab The old Tab
-     */
-
-    platformConfig: [{
-        theme: ['Blackberry', 'CupertinoClassic', 'MountainView'],
-        defaults: {
-            flex: 1
-        }
-    }],
-
-    initialize: function() {
-        var me = this;
-        me.callParent();
-
-        me.on({
-            tap: 'onTabTap',
-
-            delegate: '> tab',
-            scope   : me
-        });
-    },
-
-    // @private
-    onTabTap: function(tab) {
-        this.setActiveTab(tab);
-    },
-
-    /**
-     * @private
-     */
-    applyActiveTab: function(newActiveTab, oldActiveTab) {
-        if (!newActiveTab && newActiveTab !== 0) {
-            return;
-        }
-
-        var newTabInstance = this.parseActiveTab(newActiveTab);
-
-        if (!newTabInstance) {
-            if (oldActiveTab) {
-                Ext.Logger.warn('Trying to set a non-existent activeTab');
-            }
-            return;
-        }
-        return newTabInstance;
-    },
-
-    /**
-     * @private
-     * Default pack to center when docked to the bottom, otherwise default pack to left
-     */
-    doSetDocked: function(newDocked) {
-        var layout = this.getLayout(),
-            initialConfig = this.getInitialConfig(),
-            pack;
-
-        if (!initialConfig.layout || !initialConfig.layout.pack) {
-            pack = (newDocked == 'bottom') ? 'center' : 'left';
-            //layout isn't guaranteed to be instantiated so must test
-            if (layout.isLayout) {
-                layout.setPack(pack);
-            } else {
-                layout.pack = (layout && layout.pack) ? layout.pack : pack;
-            }
-        }
-
-		this.callParent(arguments);
-    },
-
-    /**
-     * @private
-     * Sets the active tab
-     */
-    doSetActiveTab: function(newTab, oldTab) {
-        if (newTab) {
-            newTab.setActive(true);
-        }
-
-        //Check if the parent is present, if not it is destroyed
-        if (oldTab && oldTab.parent) {
-            oldTab.setActive(false);
-        }
-    },
-
-    /**
-     * @private
-     * Parses the active tab, which can be a number or string
-     */
-    parseActiveTab: function(tab) {
-        //we need to call getItems to initialize the items, otherwise they will not exist yet.
-        if (typeof tab == 'number') {
-			return this.getItems().items[tab];
-        }
-        else if (typeof tab == 'string') {
-            tab = Ext.getCmp(tab);
-        }
-        return tab;
-    }
-});
-
-/**
- * @aside guide tabs
- * @aside video tabs-toolbars
- * @aside example tabs
- * @aside example tabs-bottom
- *
- * Tab Panels are a great way to allow the user to switch between several pages that are all full screen. Each
- * Component in the Tab Panel gets its own Tab, which shows the Component when tapped on. Tabs can be positioned at
- * the top or the bottom of the Tab Panel, and can optionally accept title and icon configurations.
- *
- * Here's how we can set up a simple Tab Panel with tabs at the bottom. Use the controls at the top left of the example
- * to toggle between code mode and live preview mode (you can also edit the code and see your changes in the live
- * preview):
- *
- *     @example miniphone preview
- *     Ext.create('Ext.TabPanel', {
- *         fullscreen: true,
- *         tabBarPosition: 'bottom',
- *
- *         defaults: {
- *             styleHtmlContent: true
- *         },
- *
- *         items: [
- *             {
- *                 title: 'Home',
- *                 iconCls: 'home',
- *                 html: 'Home Screen'
- *             },
- *             {
- *                 title: 'Contact',
- *                 iconCls: 'user',
- *                 html: 'Contact Screen'
- *             }
- *         ]
- *     });
- * One tab was created for each of the {@link Ext.Panel panels} defined in the items array. Each tab automatically uses
- * the title and icon defined on the item configuration, and switches to that item when tapped on. We can also position
- * the tab bar at the top, which makes our Tab Panel look like this:
- *
- *     @example miniphone preview
- *     Ext.create('Ext.TabPanel', {
- *         fullscreen: true,
- *
- *         defaults: {
- *             styleHtmlContent: true
- *         },
- *
- *         items: [
- *             {
- *                 title: 'Home',
- *                 html: 'Home Screen'
- *             },
- *             {
- *                 title: 'Contact',
- *                 html: 'Contact Screen'
- *             }
- *         ]
- *     });
- *
- */
-Ext.define('Ext.tab.Panel', {
-    extend:  Ext.Container ,
-    xtype : 'tabpanel',
-    alternateClassName: 'Ext.TabPanel',
-
-                              
-
-    config: {
-        /**
-         * @cfg {String} ui
-         * Sets the UI of this component.
-         * Available values are: `light` and `dark`.
-         * @accessor
-         */
-        ui: 'dark',
-
-        /**
-         * @cfg {Object} tabBar
-         * An Ext.tab.Bar configuration.
-         * @accessor
-         */
-        tabBar: true,
-
-        /**
-         * @cfg {String} tabBarPosition
-         * The docked position for the {@link #tabBar} instance.
-         * Possible values are 'top' and 'bottom'.
-         * @accessor
-         */
-        tabBarPosition: 'top',
-
-        /**
-         * @cfg layout
-         * @inheritdoc
-         */
-        layout: {
-            type: 'card',
-            animation: {
-                type: 'slide',
-                direction: 'left'
-            }
-        },
-
-        /**
-         * @cfg cls
-         * @inheritdoc
-         */
-        cls: Ext.baseCSSPrefix + 'tabpanel'
-
-        /**
-         * @cfg {Boolean/String/Object} scrollable
-         * @accessor
-         * @hide
-         */
-
-        /**
-         * @cfg {Boolean/String/Object} scroll
-         * @hide
-         */
-    },
-
-    initialize: function() {
-        this.callParent();
-
-        this.on({
-            order: 'before',
-            activetabchange: 'doTabChange',
-            delegate: '> tabbar',
-            scope   : this
-        });
-
-        this.on({
-            disabledchange: 'onItemDisabledChange',
-            delegate: '> component',
-            scope   : this
-        });
-    },
-
-    platformConfig: [{
-        theme: ['Blackberry'],
-        tabBarPosition: 'bottom'
-    }],
-
-    /**
-     * Tab panels should not be scrollable. Instead, you should add scrollable to any item that
-     * you want to scroll.
-     * @private
-     */
-    applyScrollable: function() {
-        return false;
-    },
-
-    /**
-     * Updates the Ui for this component and the {@link #tabBar}.
-     */
-    updateUi: function(newUi, oldUi) {
-        this.callParent(arguments);
-
-        if (this.initialized) {
-            this.getTabBar().setUi(newUi);
-        }
-    },
-
-    /**
-     * @private
-     */
-    doSetActiveItem: function(newActiveItem, oldActiveItem) {
-        if (newActiveItem) {
-            var items = this.getInnerItems(),
-                oldIndex = items.indexOf(oldActiveItem),
-                newIndex = items.indexOf(newActiveItem),
-                reverse = oldIndex > newIndex,
-                animation = this.getLayout().getAnimation(),
-                tabBar = this.getTabBar(),
-                oldTab = tabBar.parseActiveTab(oldIndex),
-                newTab = tabBar.parseActiveTab(newIndex);
-
-            if (animation && animation.setReverse) {
-                animation.setReverse(reverse);
-            }
-
-            this.callParent(arguments);
-
-            if (newIndex != -1) {
-                this.forcedChange = true;
-                tabBar.setActiveTab(newIndex);
-                this.forcedChange = false;
-
-                if (oldTab) {
-                    oldTab.setActive(false);
-                }
-
-                if (newTab) {
-                    newTab.setActive(true);
-                }
-            }
-        }
-    },
-
-    /**
-     * Updates this container with the new active item.
-     * @param {Object} tabBar
-     * @param {Object} newTab
-     * @return {Boolean}
-     */
-    doTabChange: function(tabBar, newTab) {
-        var oldActiveItem = this.getActiveItem(),
-            newActiveItem;
-
-        this.setActiveItem(tabBar.indexOf(newTab));
-        newActiveItem = this.getActiveItem();
-        return this.forcedChange || oldActiveItem !== newActiveItem;
-    },
-
-    /**
-     * Creates a new {@link Ext.tab.Bar} instance using {@link Ext#factory}.
-     * @param {Object} config
-     * @return {Object}
-     * @private
-     */
-    applyTabBar: function(config) {
-        if (config === true) {
-            config = {};
-        }
-
-        if (config) {
-            Ext.applyIf(config, {
-                ui: this.getUi(),
-                docked: this.getTabBarPosition()
-            });
-        }
-
-        return Ext.factory(config, Ext.tab.Bar, this.getTabBar());
-    },
-
-    /**
-     * Adds the new {@link Ext.tab.Bar} instance into this container.
-     * @private
-     */
-    updateTabBar: function(newTabBar) {
-        if (newTabBar) {
-            this.add(newTabBar);
-            this.setTabBarPosition(newTabBar.getDocked());
-        }
-    },
-
-    /**
-     * Updates the docked position of the {@link #tabBar}.
-     * @private
-     */
-    updateTabBarPosition: function(position) {
-        var tabBar = this.getTabBar();
-        if (tabBar) {
-            tabBar.setDocked(position);
-        }
-    },
-
-    onItemAdd: function(card) {
-        var me = this;
-
-        if (!card.isInnerItem()) {
-            return me.callParent(arguments);
-        }
-
-        var tabBar = me.getTabBar(),
-            initialConfig = card.getInitialConfig(),
-            tabConfig = initialConfig.tab || {},
-            tabTitle = (card.getTitle) ? card.getTitle() : initialConfig.title,
-            tabIconCls = (card.getIconCls) ? card.getIconCls() : initialConfig.iconCls,
-            tabHidden = (card.getHidden) ? card.getHidden() : initialConfig.hidden,
-            tabDisabled = (card.getDisabled) ? card.getDisabled() : initialConfig.disabled,
-            tabBadgeText = (card.getBadgeText) ? card.getBadgeText() : initialConfig.badgeText,
-            innerItems = me.getInnerItems(),
-            index = innerItems.indexOf(card),
-            tabs = tabBar.getItems(),
-            activeTab = tabBar.getActiveTab(),
-            currentTabInstance = (tabs.length >= innerItems.length) && tabs.getAt(index),
-            tabInstance;
-
-        if (tabTitle && !tabConfig.title) {
-            tabConfig.title = tabTitle;
-        }
-
-        if (tabIconCls && !tabConfig.iconCls) {
-            tabConfig.iconCls = tabIconCls;
-        }
-
-        if (tabHidden && !tabConfig.hidden) {
-            tabConfig.hidden = tabHidden;
-        }
-
-        if (tabDisabled && !tabConfig.disabled) {
-            tabConfig.disabled = tabDisabled;
-        }
-
-        if (tabBadgeText && !tabConfig.badgeText) {
-            tabConfig.badgeText = tabBadgeText;
-        }
-
-        if (!currentTabInstance && !tabConfig.title && !tabConfig.iconCls) {
-            if (!tabConfig.title && !tabConfig.iconCls) {
-                Ext.Logger.error('Adding a card to a tab container without specifying any tab configuration');
-            }
-        }
-
-        tabInstance = Ext.factory(tabConfig, Ext.tab.Tab, currentTabInstance);
-
-        if (!currentTabInstance) {
-            tabBar.insert(index, tabInstance);
-        }
-
-        card.tab = tabInstance;
-
-        me.callParent(arguments);
-
-        if (!activeTab && activeTab !== 0) {
-            tabBar.setActiveTab(tabBar.getActiveItem());
-        }
-    },
-
-    /**
-     * If an item gets enabled/disabled and it has an tab, we should also enable/disable that tab
-     * @private
-     */
-    onItemDisabledChange: function(item, newDisabled) {
-        if (item && item.tab) {
-            item.tab.setDisabled(newDisabled);
-        }
-    },
-
-    // @private
-    onItemRemove: function(item, index) {
-        this.getTabBar().remove(item.tab, this.getAutoDestroy());
-
-        this.callParent(arguments);
-    }
-}, function() {
-});
-
-/**
- * A AccordionListItem is a container for Ext.ux.AccordionList with
- * useComponent: true.
- *
- * The following example shows how to configure and update sub-component items
- * in a list:
- *
- *  Ext.define('AccordionListExample.view.ListItem', {
- *      extend: 'Ext.ux.AccordionListItem',
- *      xtype : 'examplelistitem',
- *
- *      config: {
- *          layout: {
- *              type: 'vbox'
- *          },
- *
- *          text: {
- *          },
- *          button: {
- *              iconMask: true,
- *              docked: 'right',
- *          },
- *          message: {
- *              docked: 'bottom',
- *              label: 'message'
- *          },
- *          limit: {
- *              docked: 'top',
- *              label: 'limit'
- *          },
- *
- *          headerDataMap: {
- *              getText: {
- *                  setHtml: 'text'
- *              },
- *              getButton: {
- *                  setIconCls: 'icon'
- *              }
- *          },
- *
- *          contentDataMap: {
- *              getLimit: {
- *                  setValue: 'limit'
- *              },
- *              getMessage: {
- *                  setValue: 'message'
- *              }
- *          }
- *      },
- *
- *      applyText: function(config) {
- *          return Ext.factory(config, Ext.Component);
- *      },
- *
- *      updateText: function(newText) {
- *          if (newText) {
- *              this.add(newText);
- *          }
- *      },
- *
- *      applyButton: function(config) {
- *          return Ext.factory(config, Ext.Button);
- *      },
- *
- *      updateButton: function(newButton) {
- *          if (newButton) {
- *              this.add(newButton);
- *          }
- *      },
- *
- *      applyLimit: function(config) {
- *          return Ext.factory(config, Ext.field.DatePicker);
- *      },
- *
- *      updateLimit: function(newDay) {
- *          if (newDay) {
- *              this.add(newDay);
- *          }
- *      },
- *
- *      applyMessage: function(config) {
- *          return Ext.factory(config, Ext.field.TextArea);
- *      },
- *
- *      updateMessage: function(newMessage) {
- *          if (newMessage) {
- *              this.add(newMessage);
- *          }
- *      }
- *  });
- *
- */
-Ext.define('Ext.ux.AccordionListItem', {
-    extend:  Ext.dataview.component.ListItem ,
-    xtype : 'accordionlistitem',
-
-    config: {
-        baseCls: 'accordion-list-item',  // Do not override this property!
-
-        /**
-         * @cfg {String/Object} layout
-         * Default layout config.
-         */
-        layout: {
-            type: 'hbox'
-        },
-
-        /**
-         * @cfg {Boolean} indent
-         * Whether to indent child items.
-         */
-        indent: false,
-
-        /**
-         * @cfg {Object} headerDataMap
-         * Defines header item's dataMap
-         */
-        headerDataMap: {},
-
-        /**
-         * @cfg {String/Object} layout
-         * Defines content item's dataMap
-         */
-        contentDataMap: {},
-
-        // @private
-        itemMark: {
-            docked: 'left'
-        }
-    },
-
-    /**
-     * @param  {Object} config
-     */
-    applyItemMark: function(config) {
-        return Ext.factory(config, Ext.Component);
-    },
-
-    /**
-     * @param  {Ext.Component} newItemMark
-     */
-    updateItemMark: function(newItemMark) {
-        if (newItemMark) {
-            this.add(newItemMark);
-        }
-    },
-
-    /**
-     * @override
-     * @param newRecord
-     */
-    updateRecord: function(record) {
-        var me = this,
-            dataview = me.dataview || this.getDataview(),
-            data = record && dataview.prepareData(record.getData(true), dataview.getStore().indexOf(record), record),
-            body = this.getBody(),
-            dataMap;
-
-        me._record = record;
-
-        var leaf = record && record.isLeaf(),
-            expanded = record && record.isExpanded(),
-            depth = record ? record.getDepth() : 0;
-
-        if (leaf) {
-            dataMap = me.getContentDataMap();
-        }
-        else {
-            dataMap = me.getHeaderDataMap();
-        }
-
-        me.doMapData(dataMap, data, body);
-        me.doUpdateItemMark(expanded, leaf);
-        me.toggle(leaf);
-
-        /**
-         * @event updatedata
-         * Fires whenever the data of the DataItem is updated.
-         * @param {Ext.dataview.component.DataItem} this The DataItem instance.
-         * @param {Object} newData The new data.
-         */
-        me.fireEvent('updatedata', me, data);
-    },
-
-    /**
-     * @private
-     * @param  {Boolean} expanded
-     * @param  {Boolean} leaf
-     */
-    doUpdateItemMark: function (expanded, leaf) {
-        var me = this,
-            itemMark = me.getItemMark();
-
-        if (Ext.isEmpty(expanded)) {
-            return;
-        }
-
-        var downMark = '<div class="down"></down>',
-            rightMark = '<div class="right"></div>';
-
-        itemMark.setHtml(leaf ? '' : expanded ? downMark : rightMark);
-
-        if (me.getIndent()) {
-            itemMark.setStyle('padding-left:' + depth + 'em;');
-        }
-    },
-
-    /**
-     * @private
-     * @param  {Boolean} leaf
-     */
-    toggle: function (leaf) {
-        var me = this;
-        me.doHiddenComponents(me.getHeaderDataMap(), leaf);
-        me.doHiddenComponents(me.getContentDataMap(), !leaf);
-    },
-
-    /**
-     * @private
-     * @param  {Object} map
-     * @param  {Boolean} hidden
-     */
-    doHiddenComponents: function (map, hidden) {
-        var me = this;
-        Ext.Object.each(map, function (key, value) {
-            var component = me[key]();
-            if (component) {
-                component.setHidden(hidden);
-            }
-        });
-    }
-
-});
-
-/**
- *  {@link Ext.ux.AccordionList} is a subclass of {@link Ext.Container}
- *  Collapsible List with using Ext.data.TreeStore.
- *  You can expand and collapse contents by header item tap.
- *  Also it can nested infinity.
- *
- *  @author Shinobu Kawano <http://kawanoshinobu.com>
- *
- *  Simple example:
- *
- *     @example miniphone preview
- *      var data = {
- *         "items" : [{
- *               "text" : "Today",
- *               "items" : [{
- *                           "text" : "Eat",
- *                           "leaf" : true
- *                       }, {
- *                           "text" : "Sleep",
- *                           "leaf" : true
- *                       }, {
- *                           "text" : "Drinking",
- *                           "leaf" : true
- *                       }]
- *           }, {
- *               "text" : "Tomorrow",
- *               "items" : [{
- *                           "text" : "Watch TV",
- *                           "leaf" : true
- *                       }, {
- *                           "text" : "Watch Video",
- *                           "leaf" : true
- *                       }]
- *           }, {
- *               "text" : "This week",
- *               "items" : [{
- *                           "text" : "Shopping",
- *                           "leaf" : true
- *                       }]
- *           }, {
- *               "text" : "Later",
- *               "items" : [{
- *                           "text" : "Eat",
- *                           "leaf" : true
- *                       }, {
- *                           "text" : "Sleep",
- *                           "leaf" : true
- *                       }, {
- *                           "text" : "Drinking",
- *                           "leaf" : true
- *                       }]
- *           }]
- *      };
- *
- *      Ext.define('Task', {
- *          extend: 'Ext.data.Model',
- *          config: {
- *              fields: [{
- *                  name: 'text',
- *                  type: 'string'
- *              }]
- *          }
- *      });
- *
- *      var store = Ext.create('Ext.data.TreeStore', {
- *          model: 'Task',
- *          defaultRootProperty: 'items',
- *          root: data
- *      });
- *
- *      var accordionList = Ext.create('Ext.ux.AccordionList', {
- *          fullscreen: true,
- *          store: store
- *      });
- *
- */
-Ext.define('Ext.ux.AccordionList', {
-    extend:  Ext.Container ,
-    xtype: 'accordionlist',
-    alternateClassName: 'Ext.AccordionList',
-
-               
-                            
-                                  
-      
-
-    config: {
-        /**
-         * @cfg {String/String[]} cls
-         * The CSS class to add to this component's element.
-         */
-        cls: Ext.baseCSSPrefix + 'accordion-list',
-
-        /**
-         * @cfg {String} headerItemCls
-         * The CSS class to add to this header item's element.
-         */
-        headerItemCls: Ext.baseCSSPrefix + 'accordion-list-header',
-
-        /**
-         * @cfg {String} contentItemCls
-         * The CSS class to add to this header item's element.
-         */
-        contentItemCls: Ext.baseCSSPrefix + 'accordion-list-content',
-
-        /**
-         * @cfg {String/Object} layout
-         * Default layout config.
-         */
-        layout: {
-            type: 'fit'
-        },
-
-        /**
-         * @cfg {Ext.data.TreeStore/Object} store
-         * Store instanse
-         */
-        store: null,
-
-        /**
-         * @cfg {String} displayField
-         * Defaults template's display field.
-         */
-        displayField: 'text',
-
-        /**
-         * @cfg {Boolean} scrollable
-         * List's default listScrollable config.
-         */
-        listScrollable: true,
-
-        /**
-         * @cfg {String} headerItemTpl
-         * Header item's html template.
-         */
-        headerItemTpl: [
-            '<tpl if="this.isExpanded(values)">',
-                '{0}',
-            '<tpl else>',
-                '{1}',
-            '</tpl>'
-        ].join(''),
-
-        /**
-         * @cfg {String} headerCloseTpl
-         * Header item's html template which it closing.
-         */
-        headerCloseTpl: '<div class="right"></div><div>{0}</div>',
-
-        /**
-         * @cfg {String} headerOpenTpl
-         * Header item's html template which it opening.
-         */
-        headerOpenTpl: '<div class="down"></div><div>{0}</div>',
-
-        /**
-         * @cfg {String} contentItemTpl
-         * Content item's html template.
-         */
-        contentItemTpl: '{0}',
-
-        /**
-         * @cfg {String} countTpl
-         * Content item count html template.
-         */
-        countTpl: [
-            '<div class="', Ext.baseCSSPrefix, 'accordion-list-count" ',
-                 'style="position:absolute; right:0; margin-right: 1em;">',
-                '{0}',
-            '</div>'].join(''),
-
-        /**
-         * @cfg {Boolean} defaultExpanded
-         * Whether items all expanded or not.
-         */
-        defaultExpanded: false,
-
-        /**
-         * @cfg {Boolean} useSelectedHighlights
-         * Whether selected items highlights or not.
-         */
-        useSelectedHighlights: true,
-
-        /**
-         * @cfg {Boolean} singleMode
-         * Whether to only show one expanded list at a time.
-         */
-        singleMode: false,
-
-        /**
-         * @cfg {Boolean} animation
-         * Whether to use animation when item is expanded.
-         */
-        animation: false,
-
-        /**
-         * @cfg {Number} animationDuration
-         * Animation duration time (ms). This is used when item expand.
-         */
-        animationDuration: 800,
-
-        /**
-         * @cfg {Boolean} showCount
-         * Whether to show item's count in the header.
-         */
-        showCount: false,
-
-        /**
-         * @private
-         */
-        list: null,
-
-        /**
-         * @cfg {Object} listConfig
-         * Sets list's config.
-         */
-        listConfig: {},
-
-        /**
-         * @cfg {Boolean} indent
-         * Whether to indent child items.
-         */
-        indent: false,
-
-        /**
-         * @cfg {Boolean} indent
-         * Flag the use a component based DataView implementation.
-         */
-        useComponents: false,
-
-        /**
-         * @cfg {String} indent
-         * The xtype used for the component based DataView.
-         * You must specify accordionlistitem's sub class.
-         */
-        defaultType: 'accordionlistitem',
-
-        /**
-         * @cfg {Boolean/Object} indexBar
-         * `true` to render an alphabet IndexBar docked on the right.
-         * This can also be a config object that will be passed to {@link Ext.IndexBar}.
-         */
-         indexBar: null
-    },
-
-    /**
-     * @protected
-     */
-    initialize: function() {
-        var me = this;
-        me.doInitialize();
-        me.callParent(arguments);
-    },
-
-    /**
-     * @private
-     */
-    doInitialize: function() {
-        var me = this;
-        if (me.getDefaultExpanded()) {
-            me.doAllExpand();
-        }
-    },
-
-    /**
-     * @protected
-     */
-    applyStore: function(newStore) {
-        return this.patchStore(newStore);
-    },
-
-    /**
-     * @protected
-     */
-    applyDisplayField: function(newField) {
-        return '{' + newField + '}';
-    },
-
-    /**
-     * @protected
-     */
-    updateStore: function(newStore, oldStore) {
-        var me = this,
-            list = me.getList();
-
-        if (!list) {
-            list = me.readyList();
-        }
-
-        newStore.on('load', me.onLoadStore, me);
-        list.setStore(newStore);
-    },
-
-    /**
-     * @private
-     * @return {Ext.dataview.List}
-     */
-    readyList: function() {
-        var me = this;
-        var config = me.makeListConfig();
-
-        list = Ext.create('Ext.dataview.List', config);
-
-        me.applyMoreListSetting(list);
-        me.setList(list);
-        me.add(list);
-        return list;
-    },
-
-    /**
-     * @private
-     * @return {Object}
-     */
-    makeListConfig: function() {
-        var me = this,
-            defaultConfig = {
-                scrollToTopOnRefresh: false
-            },
-            config;
-
-        if (me.getUseComponents() === false) {
-            config = me.makeElementListConfig(defaultConfig);
-        }
-        else {
-            config = me.makeComponentListConfig(defaultConfig);
-        }
-
-        if (me.getAnimation()) {
-            Ext.Object.merge(config, {
-                itemHeight: 'auto'
-            });
-        }
-
-        var indexBar = me.getIndexBar();
-        if (!Ext.isEmpty(indexBar)) {
-            Ext.Object.merge(config, {
-                indexBar: indexBar,
-                grouped : true
-            });
-        }
-
-        Ext.Object.merge(config, me.getListConfig());
-
-        return config;
-    },
-
-    /**
-     * @private
-     * @param  {Object} config
-     * @return {Object}
-     */
-    makeElementListConfig: function(config) {
-        var me = this;
-
-        Ext.Object.merge(config, {
-            itemTpl: new Ext.XTemplate(
-                '<tpl if="leaf">',
-                    me.makeContentTemplate(),
-                '<tpl else>',
-                    me.makeHeaderTemplate(),
-                    me.getShowCount() ? me.makeCountTpl() : '',
-                '</tpl>',
-                {
-                    isExpanded: function(values) {
-                        return values.expanded;
-                    }
-                }
-            ),
-            useSimpleItems: true
-        });
-
-        return config;
-    },
-
-    /**
-     * @private
-     * @param  {Object} config
-     * @return {Object}
-     */
-    makeComponentListConfig: function(config) {
-        var me = this;
-
-        Ext.Object.merge(config, {
-            useComponents: true,
-            defaultType: me.getDefaultType(),
-            itemTpl: '',
-            useSimpleItems: false
-        });
-
-        return config;
-    },
-
-    /**
-     * @private
-     * @param  {Ext.dataview.List} list
-     */
-    applyMoreListSetting: function(list) {
-        var me = this;
-
-        if (me.getUseSelectedHighlights() === false) {
-            list.setSelectedCls('');
-        }
-
-        if (me.getUseComponents()) {
-            me.applyItemTapPatch(list);
-        }
-
-        list.on('itemtap', me.onItemTap, me);
-        list.on('refresh', me.onListRefresh, me);
-        list.on('itemindexchange', me.onItemIndexChange, me);
-        list.setScrollable(me.getListScrollable());
-    },
-
-    /**
-     * @private
-     * @param  {Ext.dataview.List} list
-     */
-    applyItemTapPatch: function (list) {
-        var parseEvent = function (e) {
-            var me = this,
-                target = Ext.fly(e.getTarget()).findParent('.' + 'accordion-list-item', 8),
-                item = Ext.getCmp(target.id);
-
-            return [me, item, item.$dataIndex, e];
-        };
-        list.parseEvent = parseEvent;
-
-        list.on({
-            element: 'element',
-            delegate: '.accordion-list-item',
-            tap: list.onItemTap
-        });
-    },
-
-    /**
-     * @private
-     * @param  {Ext.data.Store} store
-     * @param  {Ext.data.Model} records
-     * @param  {Boolean} successful
-     */
-    onLoadStore: function(store, records, successful) {
-        if (successful === false) {
-            return;
-        }
-        this.setCountToRecords(records);
-    },
-
-    /**
-     * @private
-     * @param  {Ext.data.Model} records
-     */
-    setCountToRecords: function(records) {
-        var me = this;
-
-        (records || []).forEach(function setCount(record) {
-            if (record.hasChildNodes()) {
-                record.set('cnt', record.childNodes.length);
-                record.childNodes.forEach(setCount);
-            }
-            else {
-                record.set('cnt', 0);
-            }
-        });
-    },
-
-    /**
-     * @private
-     * @return {String}
-     */
-    makeHeaderTemplate: function() {
-        var me = this,
-            displayField = me.getDisplayField(),
-            openTpl = Ext.String.format(me.getHeaderOpenTpl(), displayField),
-            closeTpl = Ext.String.format(me.getHeaderCloseTpl(), displayField);
-        return Ext.String.format(me.getHeaderItemTpl(), openTpl, closeTpl);
-    },
-
-    /**
-     * @private
-     * @return {String}
-     */
-    makeContentTemplate: function() {
-        var me = this,
-            displayField = me.getDisplayField();
-        return Ext.String.format(me.getContentItemTpl(), displayField);
-    },
-
-    /**
-     * @private
-     * @return {String}
-     */
-    makeCountTpl: function() {
-        return Ext.String.format(this.getCountTpl(), '{cnt}');
-    },
-
-     /**
-     * @private
-     */
-     updateListScrollable: function(newListScrollable, oldListScrollable) {
-          var list = this.getList();
-          if (list) {
-              list.setScrollable(newListScrollable);
-          }
-     },
-
-    /**
-     * Loads data into the store.
-     */
-    load: function() {
-        this.getStore().load();
-    },
-
-    /**
-     * Remove all items from the store.
-     */
-    removeAllItem: function() {
-        this.getStore().removeAll();
-    },
-
-    /**
-     * Gets the number of cached records.
-     * @return {Number}
-     */
-    getCount: function() {
-        var store = this.getStore();
-        return Ext.isEmpty(store) ? 0 : store.getCount();
-    },
-
-    /**
-     * Gets the number of all records.
-     * @return {Number}
-     */
-    getAllCount: function() {
-        var store = this.getStore();
-        return Ext.isEmpty(store) ? 0 : store.getAllCount();
-    },
-
-    /**
-     * Expand all of contents.
-     */
-    doAllExpand: function() {
-        var me = this;
-        me.doAll(function expand(node) {
-            if (me.getAnimation()) {
-                me.addListExpandListeners(node);
-            }
-            node.expand();
-            if (!node.isLeaf()) {
-                node.childNodes.forEach(expand, me);
-            }
-        });
-    },
-
-    /**
-     * Collapse all of contents.
-     */
-    doAllCollapse: function() {
-        var me = this;
-        me.doAll(function collapse(node) {
-            node.collapse();
-            if (!node.isLeaf()) {
-                node.childNodes.forEach(collapse, me);
-            }
-        });
-    },
-
-    /**
-     * Collapse all of contents with single mode.
-     * @param  {Number} depth
-     */
-    doAllCollapseWithSingleMode: function(depth) {
-        var me = this;
-        me.doAll(function collapse(node) {
-            if (node.data.depth === depth) {
-                node.collapse();
-            }
-        });
-    },
-
-    /**
-     * @private
-     * @param  {Function} updater
-     */
-    doAll: function(updater) {
-        var me = this,
-            list = me.getList(),
-            store = list.getStore();
-        store.each(updater, me);
-    },
-
-    /**
-     * @private
-     * @param  {Ext.dataview.List} list
-     */
-    onListRefresh: function(list) {
-        var me = this,
-            items = list.listItems,
-            ln = items.length,
-            headerCls = me.getHeaderItemCls(),
-            contentCls = me.getContentItemCls(),
-            i, item, record, isLeaf;
-
-        for (i = 0; i < ln; i++) {
-            item = items[i];
-            record = item.getRecord();
-            if (!Ext.isEmpty(record)) {
-                isLeaf = record.get('leaf');
-                item.removeCls(isLeaf ? headerCls : contentCls);
-                item.addCls(isLeaf ? contentCls : headerCls);
-            }
-        }
-
-        if (me.getIndent()) {
-            me.doIndent();
-        }
-    },
-
-    /**
-     * Called when an list item has been tapped
-     * @param  {Ext.List} list The subList the item is on
-     * @param  {Number} index The id of the item tapped
-     * @param  {Ext.Element} target The list item tapped
-     * @param  {Ext.data.Record} record The record whichw as tapped
-     * @param  {Ext.event.Event} e The event
-     */
-    onItemTap: function(list, index, target, record, e) {
-        var me = this,
-            store = list.getStore(),
-            node = store.getAt(index);
-
-        if (me.getAnimation()) {
-            me.scrollToSelectedItem();
-            me.readyAnimation(list, index, target, record, e);
-        }
-
-        // if any of the event handlers return 'false', we cancel processing of the tap
-        var ret = me.fireEvent('itemtap', me, list, index, target, record, e);
-        if (ret === false) {
-            return;
-        }
-
-        if (node.isLeaf()) {
-            me.fireEvent('leafitemtap',
-                list, index, target, record, e);
-        }
-        else {
-            if (node.isExpanded()) {
-                node.collapse();
-            }
-            else {
-                if(me.getSingleMode()) {
-                    me.doAllCollapseWithSingleMode(record.data.depth);
-                }
-                node.expand();
-            }
-        }
-
-        if (me.getIndent()) {
-            me.doIndent();
-        }
-    },
-
-    /**
-     * @protected
-     * @param  {Ext.dataview.List} list
-     * @param  {Ext.data.Record} record
-     * @param  {Number} index
-     */
-    onItemIndexChange: function(list, record, index) {
-        var me = this;
-        if (me.getIndent()) {
-            me.doIndent();
-        }
-    },
-
-    /**
-     * @private
-     * http://siva-technology.blogspot.pt/2013/03/sencha-touch-scroll-to-selected-item-on.html
-     * Position list item
-     */
-    scrollToSelectedItem: function() {
-        var me = this,
-            list = me.getList(),
-            store = list.getStore(),
-            selected = list.getSelection()[0],
-            idx = store.indexOf(selected),
-            map = list.getItemMap(),
-            offset = map.map[idx];
-
-        list.getScrollable().getScroller().scrollTo(0, offset);
-    },
-
-    /**
-     * @private
-     * @param  {Ext.dataview.List} list
-     * @param  {Number} index
-     * @param  {Ext.Element} target
-     * @param  {Ext.data.Record} record
-     */
-    readyAnimation : function(list, index, target, record){
-        var me = this,
-            id = record.getId();
-
-        var parentItem = list.getStore().getAt(index);
-        me.addListExpandListeners(parentItem);
-    },
-
-    /**
-     * @private
-     * @param  {Ext.data.Model} parent
-     */
-    addListExpandListeners: function(parent) {
-        var me = this;
-
-       me.loadedTaps = me.loadedTaps || {};
-
-        if (me.loadedTaps[parent.id]) {
-             return;
-        }
-        else {
-            me.loadedTaps[parent.id] = true;
-        }
-
-        parent.setListeners({
-            expand: me.onExpandWithAnimation,
-            scope: me
-        });
-    },
-
-    /**
-     * @private
-     * @param  {Ext.data.Model} parent
-     */
-    onExpandWithAnimation: function(parent) {
-        var me = this,
-            list = me.getList();
-
-        Ext.each(parent.childNodes, function(el) {
-            var item = list.getItemAt(list.getStore().indexOf(el));
-            item.hide();
-            if (el.get('expanded')){
-                me.addListExpandListeners(item, list);
-                el.collapse();
-                el.expand();
-            }
-        });
-
-        Ext.each(parent.childNodes, function(el){
-            var item = list.getItemAt(list.getStore().indexOf(el));
-            try {
-                item.show({
-                    easing: 'easeInOut',
-                    duration: me.getAnimationDuration(),
-                    autoClear: true,
-                    from: {
-                        opacity: 0,
-                        height:'0px'
-                    },
-                    to: {
-                        opacity: 1,
-                        height:'51px'
-                    }
-                });
-            } catch(e) {}
-        });
-    },
-
-    /**
-     * @private
-     */
-    doIndent: function() {
-        var me = this,
-            list = me.getList();
-
-        var items = list.listItems,
-            ln = items.length,
-            i, item, record, elem, indent;
-
-        for (i = 0; i < ln; i++) {
-            item = items[i];
-            record = item.getRecord();
-            if (!Ext.isEmpty(record)) {
-                elem = item.element.down('.x-innerhtml');
-                indent = ((record.getDepth() + 0.5) -1) + 'em';
-                // 2.1
-                // elem = item.element.down('.x-list-item-body .x-innerhtml');
-                // indent = ((record.getDepth()) -1) + 'em';
-                elem.dom.style.setProperty('padding-left', indent);
-            }
-        }
-    },
-
-    /**
-     * HACK: See. Can not able to load json data in Sencha touch 2.1 Accordionlist
-     *       http://www.sencha.com/forum/showthread.php?253032-Can-not-able-to-load-json-data-in-Sencha-touch-2.1-Accordionlist
-     * @private
-     * @param  {Ext.data.TreeStore} store
-     * @return {Ext.data.TreeStore}
-     */
-    patchStore: function(store) {
-        var me = this;
-
-        if (!store.isStore) {
-            console.error('You should set instance of Ext.data.TreeStore to `store` config');
-            return;
-        }
-
-        store.onProxyLoad = function(operation) {
-            var records = operation.getRecords(),
-                successful = operation.wasSuccessful(),
-                node = operation.getNode();
-
-            me.loadedTaps = {}; // Reset
-
-            node.beginEdit();
-            node.set('loading', false);
-            if (successful) {
-                records = this.fillNode(node, records);
-            }
-            node.endEdit();
-            this.updateNode(node);
-            this.loading = false;
-            this.loaded = true;
-
-            // Model event
-            node.fireEvent('load', node, records, successful);
-            // Store event
-            this.fireEvent('load', this, records, successful, operation);
-            // Ext.ux.AccordionList event
-            me.fireEvent('load', this, records, successful, operation);
-
-            // this is a callback that would have been passed to the 'read' function and is
-            // optional
-            Ext.callback(operation.getCallback(), operation.getScope() ||
-                me, [records, operation, successful]);
-        };
-        store.onNodeBeforeExpand = function() {
-            // Do nothing.
-        };
-
-        store.setClearOnLoad(false);
-
-        if (store.getAutoLoad()) {
-            Ext.defer(function() {
-                var list = this.getList(),
-                    tmp = list.getLoadingText();
-                list.setLoadingText(null);
-                store.load();
-                list.setLoadingText(tmp);
-            }, 500, this);
-        }
-        return store;
-    }
-
-});
-
-//Ext.ns('Ext.ux.touch');
-/**
- * @author Shea Frederick - http://www.vinylfox.com
- * @class Ext.ux.touch.SwipeTabs
- * <p>A plugin that lets the user swipe between tabs in a TabPanel. No configuration is needed.</p>
- * <p>Sample Usage</p>
- * <pre><code>
- {
-     xtype: 'tabpanel',
-     ...,
-     plugins: [new Ext.ux.touch.SwipeTabs()],
-     ...
- }
- * </code></pre>
- */
-Ext.define('Ext.ux.touch.SwipeTabs', {
-    alias: 'plugin.swipetabs',
-
-    config : {
-        // @private
-        cmp           : null,
-
-        /**
-         * @cfg {Boolean} [allowOverflow=true] Allow swipe to go to the beginning or end
-         * @accessor
-         */
-        allowOverflow : true,
-
-        /**
-         * @cfg {Object} [animation={type : "slide"}] Animation object to use. Direction will be set on this animation.
-         * @private
-         * @accessor
-         */
-        animation     : {
-            type : 'slide'
-        }
-    },
-
-    constructor : function(config) {
-        this.initConfig(config);
-
-        this.callParent([config]);
-    },
-
-    init : function(cmp) {
-        this.setCmp(cmp);
-    },
-
-    updateCmp : function(newCmp, oldCmp) {
-        if (oldCmp) {
-            oldCmp.element.un('swipe', this.onSwipe);
-        }
-
-        if (newCmp) {
-            newCmp.element.on('swipe', this.onSwipe, this);
-        }
-    },
-
-    onSwipe : function(e) {
-        if(e.direction === 'left' || e.direction === 'right') {
-            var cmp           = this.getCmp(),
-                allowOverflow = this.getAllowOverflow(),
-                animation     = this.getAnimation(),
-                direction     = e.direction,
-                activeItem    = cmp.getActiveItem(),
-                innerItems    = cmp.getInnerItems(),
-                numIdx        = innerItems.length - 1,
-                idx           = Ext.Array.indexOf(innerItems, activeItem),
-                newIdx        = idx + (direction === 'left' ? 1 : -1),
-                newItem;
-
-            if (newIdx < 0) {
-                if (allowOverflow) {
-                    newItem = innerItems[numIdx];
-                }
-            } else if (newIdx > numIdx) {
-                if (allowOverflow) {
-                    newItem = innerItems[0];
-                }
-            } else {
-                newItem = innerItems[newIdx]
-            }
-
-            if (newItem) {
-                animation = Ext.apply({}, {
-                    direction : direction
-                }, animation);
-
-                cmp.animateActiveItem(newItem, animation);
-            }
-        }
-    }
-
 });
 
 /**
@@ -72885,728 +75316,160 @@ Ext.define('Ext.viewport.Viewport', {
  * you should **not** use {@link Ext#onReady}.
  */
 
-Ext.define('MedBlogs.model.Announcements',{
-
-	extend:  Ext.data.Model ,
-	config: {
-		fields: 
-		[
-		    'title',
-			'link',
-			'date',
-			'creator',
-			'category',
-			'description'
-		]
-	}
-});
-
-Ext.define('MedBlogs.model.Subscriptions',{
-
-	extend:  Ext.data.Model ,
-	config: {
-		fields: 
-		[
-		    'name',
-			'following',
-			'notifications'
-		]
-	}
-});
-
-Ext.define('MedBlogs.model.PinnedPosts',{
-
-	extend:  Ext.data.Model ,
-	config: {
-		fields: 
-		[
-			//'id',
-		    'title',
-			'link',
-			'pubDate',
-			'creator',
-			'category',
-			'description'
-		],
-		identifier: 'uuid',
-		proxy: {
-			type: 'localstorage',
-			id: 'pinnedposts'
-		}
-	}
-});
-
-Ext.define('MedBlogs.model.CardCategories', {
-    extend:  Ext.data.Model ,
-
-    config: {
-        fields: [
-            'id',
-            'first_name',
-            'last_name',
-            'sessionIds',
-            'bio',
-            'position',
-            'photo',
-            'affiliation',
-            'url',
-            'twitter'
-        ]
-    }
-});
-
-Ext.define('MedBlogs.model.FlashCards', {
-    extend:  Ext.data.Model ,
-
-    config: {
-        fields: [
-            'id',
-            'category',
-            'question',
-            'answer'
-        ]
-    }
-});
-
-Ext.define('MedBlogs.util.Proxy', {
-    singleton: true,
-                                 
-
-    process: function(url) {
-        var speakerStore = Ext.getStore('CardCategories'),
-            speakerIds = [],
-            speakerModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            callbackName: 'feedCb',
-
-            success: function(data) {
-                Ext.Array.each(data.proposals, function(proposal) {
-                    Ext.Array.each(proposal.speakers, function(speaker) {
-                        // don't add duplicates or items with no photos.
-                        if (speakerIds.indexOf(speaker.id) == -1 && speaker.photo && speakerIds.length < 25) {
-                            speakerIds.push(speaker.id);
-
-                            speakerModel = Ext.create('MedBlogs.model.CardCategories', speaker);
-                            speakerStore.add(speakerModel);
-                        }
-                    });
-                });
-            }
-        });
-    }
-});
-
-Ext.define('MedBlogs.store.CardCategories', {
-    extend:  Ext.data.Store ,
-
-    config: {
-        model: 'MedBlogs.model.CardCategories'
-    }
-});
-
-Ext.define('MedBlogs.store.Announcements',{
-	extend:  Ext.data.Store ,
-	config: {
-		model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
-        //If we need additional sorting - example grouper / sorter
-        //sorters: 'firstName',
-        //grouper: {
-        //    groupFn: function(record) {
-        //       return record.get('lastName')[0];
-        //    }
-        //},
-        proxy: {
-            type: 'ajax',
-            url: 'feeds.json'
-        }
-		
-	}
-});
-
-
-Ext.define('MedBlogs.view.feeds.Feeds', {
-	extend:  Ext.Panel ,
-	xtype: 'feedsScreen',
-	
-	           
-		                 
-		                    
-		                               
-		                              
-	  
-	
-	config: {
-		title: 'Announcements',
-		iconCls: 'alertIcon',
-		layout: 'fit',
-		
-		items: [
-			{
-				xtype: 'list',
-				variableHeights: true,
-				store: 'Announcements',
-				itemTpl: ['<div class="feed_list">',
-							'<div class="category">{category}</div>',
-							'<span class="title">{title}</span><br/>',
-							'<span class="creator">{creator}</span>',
-							'<span class="date">{date}</span>',
-							'<br/><span class="description">{description}</span></div>'].join(" ")
-		
-
-			}
-		]
-	}
-	
-});
-
-Ext.define('MedBlogs.view.feeds.FeedDetail', {
-    extend:  Ext.Container ,
-    xtype: 'feedDetail',
-
-    requires: [
-    ],
-
-    config: {
-        title: 'Announcement Details',
-        layout: 'vbox',
-
-       items: [
-            {
-                id: 'content',
-                tpl: ['<div class="feed_detail"><br/>',
-                            '<div class="category">{title}</div><br/>',
-                            '<span class="creator"><b>Creator:</b>  {creator}</span><br/>',
-                            '<span class="creator"><b>Date:</b>  {date}</span><br/>',
-                            '<span class="creator">{category}</span><br/><br/>',
-                            '<div class="description"><b>Description:</b> <br/>{description}</div><br/>',
-                            '<div class="description"><b>Link:</b> <u>{link}</u></div>',
-                            '</div>'].join(" ")
-            },
-            {
-                    xtype: 'button',
-                    id: 'pinButton',
-                    text: 'Pin it',
-                    align: 'center',
-                    hidden: false
-            }
-        ],
-
-        record: null
-    },
-
-    updateRecord: function(newRecord) {
-        if (newRecord) {
-            this.down('#content').setData(newRecord.data);
-        }
-    }
-});
-
-Ext.define('MedBlogs.store.Subscriptions',{
-	extend:  Ext.data.Store ,
-	config: {
-		model: 'MedBlogs.model.Subscriptions',
-		data: 
-		[
-			{
-				name : 'Year 1', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 2', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 3', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 4', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 5', 
-				following: 'no',
-				notifications: 'no'
-			}
-		]
-	}
-});
-
-Ext.define('MedBlogs.view.feeds.Settings', {
-	extend:  Ext.Panel ,
-	xtype: 'settingsScreen',
-	
-	           
-		                 
-		                    
-		                               
-		                              
-	  
-	
-	config: {
-		title: 'Settings',
-		iconCls: 'settings',
-		layout: 'fit',
-		
-		items: [
-			{
-				xtype: 'list',
-				mode: 'MULTI',
-				variableHeights: true,
-				store: 'Subscriptions',
-				itemTpl: ['<div class="feed_list">',
-							'<div class="title">{name}</div>',
-							'<span class="creator">Following: <b>{following}</b></span>',
-							'<span class="date">Notifications: <b>{notifications}</b></span></div>'].join(" ")
-		
-
-			}
-		]
-	}
-	
-});
-
-Ext.define('MedBlogs.view.FeedsNavigation', {
-    extend:  Ext.navigation.View ,
-    xtype: 'feedsNavigation',
-
-               
-                                    
-                                         
-                                      
-      
-
-    config: {
-        title: 'Announcements',
-        iconCls: 'alertIcon',
-        layout: 'card',
-        autoDestroy: false,
-
-        navigationBar: {
-            items: [
-                {
-                    xtype: 'button',
-                    id: 'settingsButton',
-                    text: 'Settings',
-                    align: 'right',
-                    hidden: false
-                },
-                {
-                    xtype: 'button',
-                    id: 'doneButton',
-                    text: 'Done',
-                    align: 'right',
-                    hidden: true
-                }
-            ]
-        },
-
-        items: [
-            { xtype: 'feedsScreen' }
-        ]
-    }
-});
-
-Ext.define('MedBlogs.view.FlashCards', {
-	extend:  Ext.Panel ,
-	xtype: 'flashCardScreen',
-	
-	           
-		               
-		                                
-		                               
-	  
-	
-
-	config: {
-		title: 'Flash Cards',
-		iconCls: 'tagIcon',
-		layout: 'card',
-
-		items: [
-			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Flash Cards'
-			},
-			{
-	            xtype: 'dataview',
-	            scrollable: true,
-	            inline: true,
-	            mode: 'MULTI',
-	            cls: 'dataview-inline',
-	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
-	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
-	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
-	            store: 'CardCategories'
-        	}
-		]
-	}
-	
-});
-
-Ext.define('MedBlogs.store.PinnedPosts',{
-	extend:  Ext.data.Store ,
-	config: {
-		model: 'MedBlogs.model.PinnedPosts',
-		
-	}
-});
-
-
-Ext.define('MedBlogs.view.PinnedPosts', {
-	extend:  Ext.Panel ,
-	xtype: 'pinnedPostsScreen',
-	
-	           
-		               
-		                    
-		                             
-		                            
-	  
-	
-	config: {
-		title: 'Pinned Posts',
-		iconCls: 'favIcon',
-		layout: 'card',
-		
-		items: [
-			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Pinned Posts'
-			},
-			{
-				xtype: 'list',
-				variableHeights: true,
-				store: 'PinnedPosts',
-				itemTpl: ['<div class="feed_list">',
-							'<div class="category">{category}</div>',
-							'<span class="title">{title}</span><br/>',
-							//'<span class="link">{link}</span>',
-							'<span class="creator">{creator}</span>',
-							'<span class="date">{date}</span>',
-							'<br/><span class="description">{description}</span></div>'].join(" ")
-
-			}
-		]
-	}
-	
-});
-
-Ext.define('MedBlogs.model.HelpModel', {
-    extend:  Ext.data.Model ,
-    config: {
-        fields: [
-            { name: 'text', type: 'string' },
-            { name: 'category', type: 'boolean' }
-        ]
-    }
-});
-
-Ext.define('MedBlogs.store.HelpStore', {
-    extend:  Ext.data.TreeStore ,
-               
-                                  
-      
-
-    config: {
-        defaultRootProperty: 'items',
-        model: 'MedBlogs.model.HelpModel',
-
-        // XXX: AccordionList Now show data from JSON
-        proxy: {
-            type: 'ajax',
-            url: 'helpData.json'
-        }
-    }
-
-});
-
-Ext.define('MedBlogs.view.Help', {
-	extend:  Ext.Panel ,
-	xtype: 'helpScreen',
-	
-	           
-		               
-                              
-	  
-	
-	config: {
-		title: 'Help',
-		iconCls: 'helpIcon',
-		layout: 'card',
-		
-		items: [
-			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Help'
-			},
-            {
-	            xtype: 'accordionlist',
-	            store: Ext.create('MedBlogs.store.HelpStore'),
-	            headerItemTpl: [
-	                '<tpl if="this.isExpanded(values)">',
-	                    '<div class="down"></div>',
-	                    '<div <tpl if="values.category">',
-	                    		'style="font-style:italic;"',
-	                    	  '<tpl else>style="font-weight:bold;"</tpl>>',
-	                    	'{text}',
-	                    '</div>',
-	                '<tpl else>',
-	                    '<div class="right"></div>',
-	                    '<div <tpl if="values.category">',
-	                    		'style="font-style:italic;"',
-	                    	  '<tpl else>style="font-weight:bold;"</tpl>>',
-	                    	'{text}',
-	                    '</div>',
-	                '</tpl>'
-	            ].join(''),
-	            contentItemTpl: [
-	                '<div style="display:-webkit-box;width:100%;text-align:right;">',
-	                    '<div style="creator">{text}</div>',
-	                '</div>'
-	            ].join(''),
-	            useSelectedHighlights: false,
-	            showCount: true,
-	            //animation: true,
-	            indent: true,
-	            //animationDuration: 300,
-	            itemId: 'nested',
-	            listeners: {
-	                initialize: function() {
-	                   this.load();
-	                   //this.addCls('PL-view');
-	                }
-	            }
-	        }
-		]
-	}
-	
-});
-
-Ext.define('MedBlogs.view.Main', {
-    extend:  Ext.tab.Panel ,
-    xtype: 'main',
-    
-               
-                                        
-    	                               
-    	                            
-                                         
-    	                           
-    	                            
-                             
-                                
-      
-    
-    config: {
-		plugins: 'swipetabs',
-        tabBarPosition: 'bottom',
-
-		fullscreen: true, 
-		defaults: {
-            scroll: 'vertical'
-        },
-        
-        items: [
-            {
-                xtype: 'feedsNavigation'
-            },
-            {
-	            xtype: 'pinnedPostsScreen'
-            },
-            {
-            	xtype: 'flashCardScreen'
-            },
-            {
-                xtype: 'helpScreen'
-            }
-        ]
-    }
-});
-
-Ext.define('MedBlogs.controller.FeedsNavigationController', {
+Ext.define('AccordionListExample.controller.Task', {
     extend:  Ext.app.Controller ,
 
     config: {
         refs: {
-            main: 'feedsNavigation',
-            settingsButton: '#settingsButton',
-            doneButton: '#doneButton',
-            pinButton: '#pinButton',
-            settingsScreen: 'settingsScreen',
-            feedsScreen: 'feedsScreen',
-            feedDetail: 'feedDetail'
         },
-
         control: {
-            main: {
-                push: 'onMainPush',
-                pop: 'onMainPop'
+            'accordionlist[itemId=basic]': {
+                leafitemtap: 'onLeafItemTap'
             },
-            settingsButton: {
-                tap: 'onSettingsSelect'
+            'accordionlist[itemId=decorate]': {
+                leafitemtap: 'onLeafItemTap'
             },
-            doneButton: {
-                tap: 'onDoneSelect'
+             'accordionlist[itemId=nested]': {
+                leafitemtap: 'onLeafItemTap'
             },
-            pinButton: {
-                tap: 'onPinSelect'
+            'accordionlist[itemId=paging]': {
+                leafitemtap: 'onLeafItemTap'
             },
-            'feedsScreen list': {
-                itemtap: 'onFeedTap'
-            },
-            'settingsScreen list': {
-                itemtap: 'onSettingTap'
+            'accordionlist[itemId=grouped]': {
+                leafitemtap: 'onLeafItemTap'
             }
-
         }
     },
 
-    onMainPush: function(view, item) {
-        var settingsButton = this.getSettingsButton();
-
-        this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
-        if (item.xtype == "feedsScreen") {
-
-            this.showButton(this.getSettingsButton());
-            this.hideButton(this.getDoneButton());
-        } else {
-            this.hideButton(this.getSettingsButton());
-            this.showButton(this.getDoneButton());
-        }
-    },
-
-    onMainPop: function(view, item) {
-        if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
-            this.showButton(this.getSettingsButton());
-            this.hideButton(this.getDoneButton());
-        } else {
-            this.hideButton(this.getSettingsButton());
-            this.showButton(this.getDoneButton());
-        }
-    },
-
-    onSettingsSelect: function() {
-        var settingsButton = this.getSettingsButton();
-
-        if (!this.settingsScreen) {
-            this.settingsScreen = Ext.create('MedBlogs.view.feeds.Settings');
-        }
-        // Push the show contact view into the navigation view
-        this.getMain().push(this.settingsScreen);
-    },
-
-    onDoneSelect: function() {
-        this.getMain().pop();
-    },
-
-     onPinSelect: function() {
-        var localPinStore = Ext.getStore('PinnedPosts');
-        var record = this.feedDetail.getRecord();
-        localPinStore.add(record);
-        /*
-        localPinStore.add({
-            category: record.category,
-            link: record.link,
-            creator: record.creator,
-            title: record.title,
-            pubDate: record.pubDate,
-            description: record.description
-        });
-        */
-        localPinStore.sync();
-    },
-
-    onSettingTap: function(list, index, node, record) {
-        // check and only show on select 
-        if(list.isSelected(record) === false)
-            Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
-    },
-
-    onFeedTap: function(list, index, node, record) {
-        if (!this.feedDetail) {
-            this.feedDetail = Ext.create('MedBlogs.view.feeds.FeedDetail');
-        }
-
-        this.feedDetail.setRecord(record);
-        // Push the show contact view into the navigation view
-        this.getMain().push(this.feedDetail);
-       
-        //Ext.Msg.alert('Tap', 'Disclose more info for ' + record.get('title'), Ext.emptyFn);
-    },
-
-    showButton: function(genericButton) {
-
-        if (!genericButton.isHidden()) {
-            return;
-        }
-
-        genericButton.show();
-    },
-
-    hideButton: function(genericButton) {
-
-        if (genericButton.isHidden()) {
-            return;
-        }
-
-        genericButton.hide();
+    onLeafItemTap: function(list, index, target, record) {
+        var value = record.get('text') || '';
+        Ext.Msg.alert('You tapped leaf! : ' + value);
     }
 });
 
-Ext.define('MedBlogs.controller.FlashCardsController', {
-    extend:  Ext.app.Controller ,
+Ext.define('AccordionListExample.view.ListItem', {
+    extend:  Ext.ux.AccordionListItem ,
+    xtype : 'examplelistitem',
+
+               
+                               
+                            
+      
 
     config: {
-        refs: {
-            flashCardScreen: 'flashCardScreen'
+        layout: {
+            type: 'vbox'
         },
 
-        control: {
-            'flashCardScreen dataview': {
-                itemtap: 'onCategoryTap'
-            }
+        text: {
+        },
+        button: {
+            iconMask: true,
+            docked: 'right',
+            ui: 'plain'
+        },
+        message: {
+            docked: 'bottom',
+            label: 'message'
+        },
+        limit: {
+            docked: 'top',
+            label: 'limit'
+        },
 
+        headerDataMap: {
+            getText: {
+                setHtml: 'text'
+            },
+            getButton: {
+                setIconCls: 'icon'
+            }
+        },
+        contentDataMap: {
+            getLimit: {
+                setValue: 'limit'
+            },
+            getMessage: {
+                setValue: 'message'
+            }
         }
     },
 
-    onCategoryTap: function(list, index, node, record) {
-        // check and only show on select 
-        if(list.isSelected(record) === false)
-            Ext.Msg.confirm(record.get('first_name'), "Would you like to select " + record.get('first_name') + "?", Ext.emptyFn);
-    }
-});
+    initialize: function () {
+        var me = this;
+        me.on({
+            delegate: 'button',
+            tap: function (btn, e) {
+                e.stopPropagation();
+                Ext.Msg.alert('You taped button!', me.getRecord().get('text'));
+            }
+        });
+    },
 
-Ext.define('MedBlogs.store.FlashCards',{
-	extend:  Ext.data.Store ,
-	config: {
-		model: 'MedBlogs.model.FlashCards',
-		data: 
-		[
-			{
-				id : '1', 
-				category: 'anatomy',
-				question: 'Which part of the body lala ?',
-				answer: 'This part of the body lala'
-			},
-			{
-				id : '2', 
-				category: 'anatomy',
-				question: 'Which bone in the body is... ?',
-				answer: 'This bone is ...'
-			}
-		]
-	}
+    /**
+     * @param  {Object} config
+     */
+    applyText: function(config) {
+        return Ext.factory(config, Ext.Component);
+    },
+
+    /**
+     * @param  {Ext.Component} newText
+     */
+    updateText: function(newText) {
+        if (newText) {
+            this.add(newText);
+        }
+    },
+
+    /**
+     * @param  {Object} config
+     */
+    applyButton: function(config) {
+        return Ext.factory(config, Ext.Button);
+    },
+
+    /**
+     * @param  {Ext.Component} newButton
+     */
+    updateButton: function(newButton) {
+        if (newButton) {
+            this.add(newButton);
+        }
+    },
+
+    /**
+     * @param  {Object} config
+     */
+    applyLimit: function(config) {
+        return Ext.factory(config, Ext.field.DatePicker);
+    },
+
+    /**
+     * @param  {Ext.Component} newDay
+     */
+    updateLimit: function(newDay) {
+        if (newDay) {
+            this.add(newDay);
+        }
+    },
+
+     /**
+     * @param  {Object} config
+     */
+    applyMessage: function(config) {
+        return Ext.factory(config, Ext.field.TextArea);
+    },
+
+    /**
+     * @param  {Ext.Component} newMessage
+     */
+    updateMessage: function(newMessage) {
+        if (newMessage) {
+            this.add(newMessage);
+        }
+    }
+
 });
 
 /*
@@ -73621,46 +75484,44 @@ Ext.define('MedBlogs.store.FlashCards',{
     will need to resolve manually.
 */
 
+Ext.Loader.setPath({
+    'Ext': 'touch/src',
+    'Ext.ux': '../src/ux',
+    'AccordionListExample': 'app'
+});
+// Ext.Loader.setConfig({ disableCaching: false });
+// Ext.require([
+//     'Ext.ux.AccordionList',
+//     'Ext.*'
+// ]);
+
 Ext.application({
-    name: 'MedBlogs',
+    name: 'AccordionListExample',
 
                
-                                
+                         
+                                          
+                                        
+                                             
+                                                
+                                            
       
 
-    controllers: [
-        'FeedsNavigationController',
-        //'PinnedPostsController',
-        'FlashCardsController'
+    models:[
+        'Task',
+        'PL',
+        'Components'
     ],
 
-    models: [
-    	'Announcements',
-        'Subscriptions',
-        'PinnedPosts',
-        'CardCategories',
-        'FlashCards'
-    ],
-    
-    stores: [
-    	'Announcements',
-        'Subscriptions',
-        'PinnedPosts',
-        'CardCategories',
-        'FlashCards'
-    ],
-    
     views: [
         'Main',
-		'FlashCards',
-		'PinnedPosts',
-        'Help',
-        'feeds.Feeds',
-        'feeds.FeedDetail',
-        'feeds.Settings',
-        'FeedsNavigation'
+        'ListItem'
     ],
-    
+
+    controllers: [
+        'Task'
+    ],
+
     icon: {
         '57': 'resources/icons/Icon.png',
         '72': 'resources/icons/Icon~ipad.png',
@@ -73680,14 +75541,11 @@ Ext.application({
     },
 
     launch: function() {
-        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.process('feed.js');
-
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
         // Initialize the main view
-        Ext.Viewport.add(Ext.create('MedBlogs.view.Main'));
+        Ext.Viewport.add(Ext.create('AccordionListExample.view.Main'));
     },
 
     onUpdated: function() {
@@ -73704,5 +75562,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
+// @require D:\GITHUB\Learning-journey-app\Accordion Example working\app.js
 

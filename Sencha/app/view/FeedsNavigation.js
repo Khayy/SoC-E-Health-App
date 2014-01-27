@@ -15,32 +15,20 @@ Ext.define('MedBlogs.view.FeedsNavigation', {
         autoDestroy: false,
 
         navigationBar: {
-            splitNavigation: (Ext.theme.name == "Blackberry") ? {
-                xtype: 'toolbar',
-                items: [{
-                    docked: 'right',
-                    xtype: 'button',
-                    iconCls: 'settings',
-                    id: 'settingsButton'
-                }]
-            } : false,
-            //Could be used to obtain light grey themed titlebars, toolbars and navbars 
-            //ui: (Ext.theme.name == "Blackberry") ? 'light' : 'sencha',
             items: [
                 {
                     xtype: 'button',
                     id: 'settingsButton',
                     text: 'Settings',
                     align: 'right',
-                    hidden: false,
-                    hideAnimation: Ext.os.is.Android ? false : {
-                        type: 'fadeOut',
-                        duration: 200
-                    },
-                    showAnimation: Ext.os.is.Android ? false : {
-                        type: 'fadeIn',
-                        duration: 200
-                    }
+                    hidden: false
+                },
+                {
+                    xtype: 'button',
+                    id: 'doneButton',
+                    text: 'Done',
+                    align: 'right',
+                    hidden: true
                 }
             ]
         },

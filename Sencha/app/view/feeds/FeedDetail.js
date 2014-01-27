@@ -20,6 +20,13 @@ Ext.define('MedBlogs.view.feeds.FeedDetail', {
                             '<div class="description"><b>Description:</b> <br/>{description}</div><br/>',
                             '<div class="description"><b>Link:</b> <u>{link}</u></div>',
                             '</div>'].join(" ")
+            },
+            {
+                    xtype: 'button',
+                    id: 'pinButton',
+                    text: 'Pin it',
+                    align: 'center',
+                    hidden: false
             }
         ],
 

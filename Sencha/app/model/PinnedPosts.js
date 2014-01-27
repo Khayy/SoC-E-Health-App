@@ -4,13 +4,18 @@ Ext.define('MedBlogs.model.PinnedPosts',{
 	config: {
 		fields: 
 		[
+			//'id',
 		    'title',
 			'link',
-			'date',
+			'pubDate',
 			'creator',
 			'category',
-			'description',
-			'complete'
-		]
+			'description'
+		],
+		identifier: 'uuid',
+		proxy: {
+			type: 'localstorage',
+			id: 'pinnedposts'
+		}
 	}
 });

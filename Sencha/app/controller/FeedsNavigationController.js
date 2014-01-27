@@ -5,6 +5,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         refs: {
             main: 'feedsNavigation',
             settingsButton: '#settingsButton',
+            doneButton: '#doneButton',
+            pinButton: '#pinButton',
             settingsScreen: 'settingsScreen',
             feedsScreen: 'feedsScreen',
             feedDetail: 'feedDetail'
@@ -17,6 +19,12 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
             },
             settingsButton: {
                 tap: 'onSettingsSelect'
+            },
+            doneButton: {
+                tap: 'onDoneSelect'
+            },
+            pinButton: {
+                tap: 'onPinSelect'
             },
             'feedsScreen list': {
                 itemtap: 'onFeedTap'
@@ -31,19 +39,24 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
 
+        this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "feedsScreen") {
 
-            this.showSettingsButton();
+            this.showButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
         } else {
-            this.hideSettingsButton();
+            this.hideButton(this.getSettingsButton());
+            this.showButton(this.getDoneButton());
         }
     },
 
     onMainPop: function(view, item) {
         if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
-            this.showSettingsButton();
+            this.showButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
         } else {
-            this.hideSettingsButton();
+            this.hideButton(this.getSettingsButton());
+            this.showButton(this.getDoneButton());
         }
     },
 
@@ -55,6 +68,27 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         }
         // Push the show contact view into the navigation view
         this.getMain().push(this.settingsScreen);
+    },
+
+    onDoneSelect: function() {
+        this.getMain().pop();
+    },
+
+     onPinSelect: function() {
+        var localPinStore = Ext.getStore('PinnedPosts');
+        var record = this.feedDetail.getRecord();
+        localPinStore.add(record);
+        /*
+        localPinStore.add({
+            category: record.category,
+            link: record.link,
+            creator: record.creator,
+            title: record.title,
+            pubDate: record.pubDate,
+            description: record.description
+        });
+        */
+        localPinStore.sync();
     },
 
     onSettingTap: function(list, index, node, record) {
@@ -75,23 +109,21 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         //Ext.Msg.alert('Tap', 'Disclose more info for ' + record.get('title'), Ext.emptyFn);
     },
 
-    showSettingsButton: function() {
-        var settingsButton = this.getSettingsButton();
+    showButton: function(genericButton) {
 
-        if (!settingsButton.isHidden()) {
+        if (!genericButton.isHidden()) {
             return;
         }
 
-        settingsButton.show();
+        genericButton.show();
     },
 
-    hideSettingsButton: function() {
-        var settingsButton = this.getSettingsButton();
+    hideButton: function(genericButton) {
 
-        if (settingsButton.isHidden()) {
+        if (genericButton.isHidden()) {
             return;
         }
 
-        settingsButton.hide();
+        genericButton.hide();
     }
 });
