@@ -1,4 +1,4 @@
-Ext.define('MedBlogs.util.Proxy', {
+Ext.define('MedBlogs.util.Proxy.CardCategories', {
     singleton: true,
     requires: ['Ext.data.JsonP'],
 

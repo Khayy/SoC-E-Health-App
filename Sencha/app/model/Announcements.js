@@ -6,6 +6,7 @@ Ext.define('MedBlogs.model.Announcements',{
 		[
 		    'title',
 			'link',
+			{name: 'pubDate', type: 'int'},
 			'date',
 			'creator',
 			'category',
