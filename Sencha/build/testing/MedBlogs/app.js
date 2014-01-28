@@ -73433,7 +73433,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
             pinButton: '#pinButton',
             settingsScreen: 'settingsScreen',
             feedsScreen: 'feedsScreen',
-            feedDetail: 'feedDetail'
+            feedDetail: 'feedDetail',
+            feedList: 'feedsNavigation list'
         },
 
         control: {
@@ -73462,7 +73463,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
-
+		
         this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "feedsScreen") {
 
@@ -73475,6 +73476,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     },
 
     onMainPop: function(view, item) {
+    	// deselect any tapped announcements
+		this.getFeedList().deselectAll();
         if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
@@ -73498,7 +73501,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         this.getMain().pop();
     },
 
-     onPinSelect: function() {
+    onPinSelect: function() {
         var localPinStore = Ext.getStore('PinnedPosts');
         var record = this.feedDetail.getRecord();
         localPinStore.add(record);
@@ -73527,7 +73530,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         if (!this.feedDetail) {
             this.feedDetail = Ext.create('MedBlogs.view.feeds.FeedDetail');
         }
-
+		
         this.feedDetail.setRecord(record);
         // Push the show contact view into the navigation view
         this.getMain().push(this.feedDetail);

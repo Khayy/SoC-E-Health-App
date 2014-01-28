@@ -1,16 +1,11 @@
-Ext.define('MedBlogs.controller.FeedsNavigationController', {
+Ext.define('MedBlogs.controller.PinnedPostsNavigationController', {
     extend: 'Ext.app.Controller',
 
     config: {
         refs: {
-            main: 'feedsNavigation',
-            settingsButton: '#settingsButton',
-            doneButton: '#doneButton',
-            pinButton: '#pinButton',
-            settingsScreen: 'settingsScreen',
-            feedsScreen: 'feedsScreen',
-            feedDetail: 'feedDetail',
-            feedList: 'feedsNavigation list'
+           main: '', // ref to main navigation view
+           doneButton: '', // done
+           unpinButton: ''
         },
 
         control: {
@@ -18,22 +13,12 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
                 push: 'onMainPush',
                 pop: 'onMainPop'
             },
-            settingsButton: {
-                tap: 'onSettingsSelect'
-            },
             doneButton: {
                 tap: 'onDoneSelect'
             },
             pinButton: {
                 tap: 'onPinSelect'
-            },
-            'feedsScreen list': {
-                itemtap: 'onFeedTap'
-            },
-            'settingsScreen list': {
-                itemtap: 'onSettingTap'
             }
-
         }
     },
 
