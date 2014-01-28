@@ -23,9 +23,20 @@ Ext.define('MedBlogs.view.feeds.Settings', {
 				itemTpl: ['<div class="feed_list">',
 							'<div class="title">{name}</div>',
 							'<span class="creator">Following: <b>{following}</b></span>',
-							'<span class="date">Notifications: <b>{notifications}</b></span></div>'].join(" ")
-		
-
+							'<span class="date">Notifications: <b>{notifications}</b></span></div>'].join(" "),
+				listeners: {
+					refresh: function(me) {
+						//var store = Ext.getStore('Subscriptions');
+						
+						var data = me.getStore().getData().items;
+						
+						for (var i =0; i < data.length; i++) {
+							if (data[i].get('following') === 'yes') {
+								me.select(i,true,false);
+							}
+						}
+					}
+				}
 			}
 		]
 	}

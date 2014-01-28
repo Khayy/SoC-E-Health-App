@@ -67,6 +67,8 @@ Ext.application({
         '1536x2008': 'resources/startup/1536x2008.png',
         '1496x2048': 'resources/startup/1496x2048.png'
     },
+    
+    launchView: 'Announcements',
 
     launch: function() {
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
@@ -74,12 +76,17 @@ Ext.application({
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
+		
+        this.subscriptionsInit();
         
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
         // Initialize the main view
-        Ext.Viewport.add(Ext.create('MedBlogs.view.Main'));
+        var mainView = Ext.create('MedBlogs.view.Main')
+        Ext.Viewport.add(mainView);
+
+		// to do, figure out some way to get to the seconary view
     },
 
     onUpdated: function() {
@@ -92,5 +99,47 @@ Ext.application({
                 }
             }
         );
+    },
+    
+    subscriptionsInit: function (subscriptions) {
+   		// load and setup subscriptions from local storage
+		var subscriptions = Ext.getStore('Subscriptions');
+		subscriptions.load();
+		
+	    if (subscriptions.getCount() < 1) {
+		    subscriptions.add({
+				name : 'Year 1', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 2', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 3', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 4', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 5', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.sync();
+			
+			this.launchView = 'Subscriptions';
+	    }
     }
 });

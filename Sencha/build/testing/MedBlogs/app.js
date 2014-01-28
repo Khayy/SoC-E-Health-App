@@ -72910,7 +72910,13 @@ Ext.define('MedBlogs.model.Subscriptions',{
 		    'name',
 			'following',
 			'notifications'
-		]
+		],
+		
+		identifier: 'uuid',
+		proxy: {
+			type: 'localstorage',
+			id: 'subscriptions'
+		}
 	}
 });
 
@@ -73107,35 +73113,7 @@ Ext.define('MedBlogs.view.feeds.FeedDetail', {
 Ext.define('MedBlogs.store.Subscriptions',{
 	extend:  Ext.data.Store ,
 	config: {
-		model: 'MedBlogs.model.Subscriptions',
-		data: 
-		[
-			{
-				name : 'Year 1', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 2', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 3', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 4', 
-				following: 'no',
-				notifications: 'no'
-			},
-			{
-				name : 'Year 5', 
-				following: 'no',
-				notifications: 'no'
-			}
-		]
+		model: 'MedBlogs.model.Subscriptions'
 	}
 });
 
@@ -73164,9 +73142,20 @@ Ext.define('MedBlogs.view.feeds.Settings', {
 				itemTpl: ['<div class="feed_list">',
 							'<div class="title">{name}</div>',
 							'<span class="creator">Following: <b>{following}</b></span>',
-							'<span class="date">Notifications: <b>{notifications}</b></span></div>'].join(" ")
-		
-
+							'<span class="date">Notifications: <b>{notifications}</b></span></div>'].join(" "),
+				listeners: {
+					refresh: function(me) {
+						//var store = Ext.getStore('Subscriptions');
+						
+						var data = me.getStore().getData().items;
+						
+						for (var i =0; i < data.length; i++) {
+							if (data[i].get('following') === 'yes') {
+								me.select(i,true,false);
+							}
+						}
+					}
+				}
 			}
 		]
 	}
@@ -73518,8 +73507,20 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onSettingTap: function(list, index, node, record) {
         // check and only show on select 
-        if(list.isSelected(record) === false)
-            Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", Ext.emptyFn);
+        if(list.isSelected(record) === false) {
+        	record.set('following', 'yes');
+	        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
+		        if (choice === 'yes' || choice === 'ok') {
+			        record.set('notifications', 'yes');
+		        }
+		        
+		        record.save();
+	        });
+        } else {
+	        record.set('following', 'no');
+	        record.set('notifications', 'no');
+	        record.save();
+        }
     },
 
     onFeedTap: function(list, index, node, record) {
@@ -73667,6 +73668,8 @@ Ext.application({
         '1536x2008': 'resources/startup/1536x2008.png',
         '1496x2048': 'resources/startup/1496x2048.png'
     },
+    
+    launchView: 'Announcements',
 
     launch: function() {
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
@@ -73674,12 +73677,17 @@ Ext.application({
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
+		
+        this.subscriptionsInit();
         
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
         // Initialize the main view
-        Ext.Viewport.add(Ext.create('MedBlogs.view.Main'));
+        var mainView = Ext.create('MedBlogs.view.Main')
+        Ext.Viewport.add(mainView);
+
+		// to do, figure out some way to get to the seconary view
     },
 
     onUpdated: function() {
@@ -73692,6 +73700,48 @@ Ext.application({
                 }
             }
         );
+    },
+    
+    subscriptionsInit: function (subscriptions) {
+   		// load and setup subscriptions from local storage
+		var subscriptions = Ext.getStore('Subscriptions');
+		subscriptions.load();
+		
+	    if (subscriptions.getCount() < 1) {
+		    subscriptions.add({
+				name : 'Year 1', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 2', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 3', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 4', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.add({
+				name : 'Year 5', 
+				following: 'no',
+				notifications: 'no'
+			});
+			
+			subscriptions.sync();
+			
+			this.launchView = 'Subscriptions';
+	    }
     }
 });
 

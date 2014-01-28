@@ -7,6 +7,12 @@ Ext.define('MedBlogs.model.Subscriptions',{
 		    'name',
 			'following',
 			'notifications'
-		]
+		],
+		
+		identifier: 'uuid',
+		proxy: {
+			type: 'localstorage',
+			id: 'subscriptions'
+		}
 	}
 });
