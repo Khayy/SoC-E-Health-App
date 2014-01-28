@@ -8,7 +8,7 @@ Ext.define('MedBlogs.view.Main', {
     	'MedBlogs.view.feeds.Feeds',
         'MedBlogs.view.feeds.FeedDetail',
     	'MedBlogs.view.FlashCards',
-    	'MedBlogs.view.PinnedPosts',
+    	'MedBlogs.view.PinnedPostsNavigation',
         'MedBlogs.view.Help',
         'Ext.ux.touch.SwipeTabs'
     ],
@@ -27,7 +27,7 @@ Ext.define('MedBlogs.view.Main', {
                 xtype: 'feedsNavigation'
             },
             {
-	            xtype: 'pinnedPostsScreen'
+	            xtype: 'pinnedNavigation'
             },
             {
             	xtype: 'flashCardScreen'

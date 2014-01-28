@@ -1,4 +1,4 @@
-Ext.define('MedBlogs.view.PinnedPosts', {
+Ext.define('MedBlogs.view.pinned.PinnedPosts', {
 	extend: 'Ext.Panel',
 	xtype: 'pinnedPostsScreen',
 	
@@ -9,17 +9,10 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 		'MedBlogs.model.PinnedPosts'
 	],
 	
-	config: {
+	config: {	
 		title: 'Pinned Posts',
-		iconCls: 'favIcon',
-		layout: 'card',
-		
+		layout: 'fit',	
 		items: [
-			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Pinned Posts'
-			},
 			{
 				xtype: 'list',
 				variableHeights: true,

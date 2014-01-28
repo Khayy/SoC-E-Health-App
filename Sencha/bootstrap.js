@@ -657,6 +657,7 @@ Ext.ClassManager.addNameAlternateMappings({
   ],
   "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.controller.FlashCardsController": [],
+  "MedBlogs.controller.PinnedPostsNavigationController": [],
   "MedBlogs.model.Announcements": [],
   "MedBlogs.model.CardCategories": [],
   "MedBlogs.model.FlashCards": [],
@@ -674,10 +675,12 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.view.FlashCards": [],
   "MedBlogs.view.Help": [],
   "MedBlogs.view.Main": [],
-  "MedBlogs.view.PinnedPosts": [],
+  "MedBlogs.view.PinnedPostsNavigation": [],
   "MedBlogs.view.feeds.FeedDetail": [],
   "MedBlogs.view.feeds.Feeds": [],
-  "MedBlogs.view.feeds.Settings": []
+  "MedBlogs.view.feeds.Settings": [],
+  "MedBlogs.view.pinned.PinnedPosts": [],
+  "MedBlogs.view.pinned.PostDetail": []
 });
 Ext.ClassManager.addNameAliasMappings({
   "Ext.AbstractComponent": [],
@@ -1418,6 +1421,7 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.viewport.WindowsPhone": [],
   "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.controller.FlashCardsController": [],
+  "MedBlogs.controller.PinnedPostsNavigationController": [],
   "MedBlogs.model.Announcements": [],
   "MedBlogs.model.CardCategories": [],
   "MedBlogs.model.FlashCards": [],
@@ -1443,8 +1447,8 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.view.Main": [
     "widget.main"
   ],
-  "MedBlogs.view.PinnedPosts": [
-    "widget.pinnedPostsScreen"
+  "MedBlogs.view.PinnedPostsNavigation": [
+    "widget.pinnedNavigation"
   ],
   "MedBlogs.view.feeds.FeedDetail": [
     "widget.feedDetail"
@@ -1454,5 +1458,11 @@ Ext.ClassManager.addNameAliasMappings({
   ],
   "MedBlogs.view.feeds.Settings": [
     "widget.settingsScreen"
+  ],
+  "MedBlogs.view.pinned.PinnedPosts": [
+    "widget.pinnedPostsScreen"
+  ],
+  "MedBlogs.view.pinned.PostDetail": [
+    "widget.postDetail"
   ]
 });

@@ -73249,7 +73249,7 @@ Ext.define('MedBlogs.store.PinnedPosts',{
 });
 
 
-Ext.define('MedBlogs.view.PinnedPosts', {
+Ext.define('MedBlogs.view.pinned.PinnedPosts', {
 	extend:  Ext.Panel ,
 	xtype: 'pinnedPostsScreen',
 	
@@ -73260,17 +73260,10 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 		                            
 	  
 	
-	config: {
+	config: {	
 		title: 'Pinned Posts',
-		iconCls: 'favIcon',
-		layout: 'card',
-		
+		layout: 'fit',	
 		items: [
-			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Pinned Posts'
-			},
 			{
 				xtype: 'list',
 				variableHeights: true,
@@ -73287,6 +73280,88 @@ Ext.define('MedBlogs.view.PinnedPosts', {
 		]
 	}
 	
+});
+
+Ext.define('MedBlogs.view.pinned.PostDetail', {
+    extend:  Ext.Container ,
+    xtype: 'postDetail',
+
+    requires: [
+    ],
+
+    config: {
+        title: 'Saved Announcement Details',
+        layout: 'vbox',
+
+       items: [
+            {
+                id: 'content',
+                tpl: ['<div class="feed_detail"><br/>',
+                            '<div class="category">{title}</div><br/>',
+                            '<span class="creator"><b>Creator:</b>  {creator}</span><br/>',
+                            '<span class="creator"><b>Date:</b>  {date}</span><br/>',
+                            '<span class="creator">{category}</span><br/><br/>',
+                            '<div class="description"><b>Description:</b> <br/>{description}</div><br/>',
+                            '<div class="description"><b>Link:</b> <u>{link}</u></div>',
+                            '</div>'].join(" ")
+            },
+            {
+                    xtype: 'button',
+                    id: 'unpinButton',
+                    text: 'Remove from pinned posts',
+                    align: 'center',
+                    hidden: false
+            }
+        ],
+
+        record: null
+    },
+
+    updateRecord: function(newRecord) {
+        if (newRecord) {
+            this.down('#content').setData(newRecord.data);
+        }
+    }
+});
+
+Ext.define('MedBlogs.view.PinnedPostsNavigation', {
+    extend:  Ext.navigation.View ,
+    xtype: 'pinnedNavigation',
+
+               
+                                           
+                                         
+      
+
+    config: {
+        title: 'Pinned Posts',
+		iconCls: 'favIcon',
+		layout: 'card',
+        autoDestroy: false,
+
+        /*navigationBar: {
+            items: [
+                {
+                    xtype: 'button',
+                    id: 'settingsButton',
+                    text: 'Settings',
+                    align: 'right',
+                    hidden: false
+                },
+                {
+                    xtype: 'button',
+                    id: 'doneButton',
+                    text: 'Done',
+                    align: 'right',
+                    hidden: true
+                }
+            ]
+        },*/
+
+        items: [
+            { xtype: 'pinnedPostsScreen' }
+        ]
+    }
 });
 
 Ext.define('MedBlogs.model.HelpModel', {
@@ -73391,7 +73466,7 @@ Ext.define('MedBlogs.view.Main', {
     	                            
                                          
     	                           
-    	                            
+    	                                      
                              
                                 
       
@@ -73410,7 +73485,7 @@ Ext.define('MedBlogs.view.Main', {
                 xtype: 'feedsNavigation'
             },
             {
-	            xtype: 'pinnedPostsScreen'
+	            xtype: 'pinnedNavigation'
             },
             {
             	xtype: 'flashCardScreen'
@@ -73557,6 +73632,60 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     }
 });
 
+Ext.define('MedBlogs.controller.PinnedPostsNavigationController', {
+    extend:  Ext.app.Controller ,
+
+    config: {
+        refs: {
+           main: 'pinnedNavigation', // ref to main navigation view
+           postsList: 'pinnedNavigation pinnedPostsScreen list',
+           unpinButton: '#unpinButton'
+        },
+
+        control: {
+            main: {
+                push: 'onMainPush',
+                pop: 'onMainPop'
+            },
+            postsList: {
+	          itemtap: 'onFeedTap'  
+            },
+            unpinButton: {
+                tap: 'onUnpinSelect'
+            }
+        }
+    },
+
+    onMainPush: function(view, item) {
+		// nothing special 
+    },
+
+    onMainPop: function(view, item) {
+    	// deselect any tapped announcements
+		this.getPostsList().deselectAll();
+    },
+
+    onUnpinSelect: function() {
+        var localPinStore = Ext.getStore('PinnedPosts');
+        var record = this.postDetail.getRecord(record);
+        localPinStore.remove(record);
+        localPinStore.sync();
+        this.getMain().pop();
+    },
+
+    onFeedTap: function(list, index, node, record) {
+        if (!this.postDetail) {
+            this.postDetail = Ext.create('MedBlogs.view.pinned.PostDetail');
+        }
+		
+        this.postDetail.setRecord(record);
+        // Push the show contact view into the navigation view
+        this.getMain().push(this.postDetail);
+       
+        //Ext.Msg.alert('Tap', 'Disclose more info for ' + record.get('title'), Ext.emptyFn);
+    }
+});
+
 Ext.define('MedBlogs.controller.FlashCardsController', {
     extend:  Ext.app.Controller ,
 
@@ -73623,7 +73752,7 @@ Ext.application({
 
     controllers: [
         'FeedsNavigationController',
-        //'PinnedPostsController',
+        'PinnedPostsNavigationController',
         'FlashCardsController'
     ],
 
@@ -73646,7 +73775,9 @@ Ext.application({
     views: [
         'Main',
 		'FlashCards',
-		'PinnedPosts',
+		'PinnedPostsNavigation',
+		'pinned.PinnedPosts',
+		'pinned.PostDetail',
         'Help',
         'feeds.Feeds',
         'feeds.FeedDetail',

@@ -19,7 +19,7 @@ Ext.application({
 
     controllers: [
         'FeedsNavigationController',
-        //'PinnedPostsController',
+        'PinnedPostsNavigationController',
         'FlashCardsController'
     ],
 
@@ -42,7 +42,9 @@ Ext.application({
     views: [
         'Main',
 		'FlashCards',
-		'PinnedPosts',
+		'PinnedPostsNavigation',
+		'pinned.PinnedPosts',
+		'pinned.PostDetail',
         'Help',
         'feeds.Feeds',
         'feeds.FeedDetail',
