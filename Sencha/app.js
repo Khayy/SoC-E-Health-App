@@ -72,6 +72,9 @@ Ext.application({
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
         MedBlogs.util.Proxy.process('feed.js');
 
+		// load pinned posts from local storeage
+		Ext.getStore('PinnedPosts').load();
+        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 

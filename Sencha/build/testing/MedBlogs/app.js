@@ -72928,7 +72928,6 @@ Ext.define('MedBlogs.model.PinnedPosts',{
 			'category',
 			'description'
 		],
-		autoload: true,
 		identifier: 'uuid',
 		proxy: {
 			type: 'localstorage',
@@ -73512,7 +73511,6 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
      onPinSelect: function() {
         var localPinStore = Ext.getStore('PinnedPosts');
-        localPinStore.load();
         var record = this.feedDetail.getRecord();
         localPinStore.add(record);
         localPinStore.sync();
@@ -73674,6 +73672,9 @@ Ext.application({
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
         MedBlogs.util.Proxy.process('feed.js');
 
+		// load pinned posts from local storeage
+		Ext.getStore('PinnedPosts').load();
+        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
@@ -73695,5 +73696,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
+// @require /Users/tobyp/Desktop/Project Repositories /SoC-E-Health-App/Sencha/app.js
 
