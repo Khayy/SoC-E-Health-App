@@ -74,7 +74,10 @@ Ext.application({
 
     launch: function() {
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.process('feed.js');
+        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+
+        Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
+        MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
@@ -101,6 +104,31 @@ Ext.application({
                 }
             }
         );
+    },
+
+    doInsertToken:function(jsonRequestObject) {
+
+        Ext.Ajax.request({
+            url: 'getRequest.json',
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000,
+            params: Ext.Object.toQueryString(jsonRequestObject),
+
+            success: function(response, opts) {
+                if (response && response.responseText) {
+                    var jsonObject = Ext.JSON.decode(response.responseText);
+                    // handle search result
+                } else {
+                    // handle error response
+                }
+            }, failure: function(response, opts) {
+                // handle error response
+            }
+        });
     },
     
     subscriptionsInit: function (subscriptions) {
