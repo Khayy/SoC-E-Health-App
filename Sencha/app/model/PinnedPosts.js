@@ -12,6 +12,7 @@ Ext.define('MedBlogs.model.PinnedPosts',{
 			'category',
 			'description'
 		],
+		autoload: true,
 		identifier: 'uuid',
 		proxy: {
 			type: 'localstorage',

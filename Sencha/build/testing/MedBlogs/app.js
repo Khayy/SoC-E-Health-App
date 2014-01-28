@@ -72928,6 +72928,7 @@ Ext.define('MedBlogs.model.PinnedPosts',{
 			'category',
 			'description'
 		],
+		autoload: true,
 		identifier: 'uuid',
 		proxy: {
 			type: 'localstorage',
@@ -73255,8 +73256,7 @@ Ext.define('MedBlogs.view.FlashCards', {
 Ext.define('MedBlogs.store.PinnedPosts',{
 	extend:  Ext.data.Store ,
 	config: {
-		model: 'MedBlogs.model.PinnedPosts',
-		
+		model: 'MedBlogs.model.PinnedPosts'
 	}
 });
 
@@ -73512,18 +73512,9 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
      onPinSelect: function() {
         var localPinStore = Ext.getStore('PinnedPosts');
+        localPinStore.load();
         var record = this.feedDetail.getRecord();
         localPinStore.add(record);
-        /*
-        localPinStore.add({
-            category: record.category,
-            link: record.link,
-            creator: record.creator,
-            title: record.title,
-            pubDate: record.pubDate,
-            description: record.description
-        });
-        */
         localPinStore.sync();
     },
 

@@ -76,18 +76,9 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
      onPinSelect: function() {
         var localPinStore = Ext.getStore('PinnedPosts');
+        localPinStore.load();
         var record = this.feedDetail.getRecord();
         localPinStore.add(record);
-        /*
-        localPinStore.add({
-            category: record.category,
-            link: record.link,
-            creator: record.creator,
-            title: record.title,
-            pubDate: record.pubDate,
-            description: record.description
-        });
-        */
         localPinStore.sync();
     },
 
