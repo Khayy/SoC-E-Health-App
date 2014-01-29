@@ -14,6 +14,10 @@
             background-color: #1985D0
         }
 
+        .hidden {
+            margin-left:-1000em ! important;
+        }
+
         #appLoadingIndicator {
             position: absolute;
             top: 50%;
@@ -96,16 +100,10 @@
         }
 
     </style>
-    
-	<script type="text/javascript" src="cordova.js"></script>
-	<script type="text/javascript" src="PushPlugin.js"></script>
-    <script type="text/javascript" src="js/index.js"></script>
-    <script type="text/javascript">
-        app.initialize();
-    </script>
-    
     <!-- The line below must be kept intact for Sencha Command to build your application -->
-    <script type="text/javascript">/**
+        <script type="text/javascript" src="cordova.js"></script>
+    <script type="text/javascript" src="PushNotification.js"></script>
+     <script type="text/javascript">/**
  * Sencha Blink - Testing
  * @author Jacky Nguyen <jacky@sencha.com>
  */
@@ -282,7 +280,6 @@
     }
 
 })(this);Ext.blink({"id":"6d2cf733-af1d-43ce-818f-c82f4d5be75d","js":[{"path":"app.js","update":"delta"}],"css":[{"path":"resources/css/cupertino.css","update":"delta"}]});</script>
-    
     </head>
 <body>
     <div id="appLoadingIndicator">

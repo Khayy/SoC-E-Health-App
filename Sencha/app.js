@@ -14,7 +14,9 @@ Ext.application({
     name: 'MedBlogs',
 
     requires: [
-        'Ext.ux.touch.SwipeTabs'
+        'Ext.ux.touch.SwipeTabs',
+        'Ext.device.Push',
+        'Ext.device.Notification'
     ],
 
     controllers: [
@@ -83,7 +85,8 @@ Ext.application({
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-        
+       // this.pushInit();
+       
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
@@ -104,31 +107,6 @@ Ext.application({
                 }
             }
         );
-    },
-
-    doInsertToken:function(jsonRequestObject) {
-
-        Ext.Ajax.request({
-            url: 'getRequest.json',
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000,
-            params: Ext.Object.toQueryString(jsonRequestObject),
-
-            success: function(response, opts) {
-                if (response && response.responseText) {
-                    var jsonObject = Ext.JSON.decode(response.responseText);
-                    // handle search result
-                } else {
-                    // handle error response
-                }
-            }, failure: function(response, opts) {
-                // handle error response
-            }
-        });
     },
     
     subscriptionsInit: function (subscriptions) {
@@ -171,5 +149,55 @@ Ext.application({
 			
 			this.launchView = 'Subscriptions';
 	    }
+    },
+    
+    pushInit: function() {
+    	var params = {	type: subscribe };
+    	if (Ext.os.is.iOS) {
+	    	params.os = 'ios';
+    	} else if (Ext.os.is.Android) {
+	    	params.os = 'android';
+    	}
+    	
+	    Ext.device.Push.register({
+		    type: Ext.device.Push.ALERT,
+		    success: function(token) {
+		    	params.token = token;
+		    	
+		        Ext.Msg.alert("Token", "Device token:" + token);
+		        Ext.Ajax.request({
+		            url: 'the push server url',
+		            method: 'GET',
+		            headers: {
+		                'Accept': 'application/json',
+		                'Content-Type': 'application/json'
+		            },
+		            timeout: 30000,
+		            params: Ext.Object.toQueryString(params),
+		
+		            success: function(response, opts) {
+		                if (!(response && response.responseText === 'true')) {
+		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                }
+		            }, 
+		            failure: function(response, opts) {
+		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		            }
+		        });
+		    },
+		    failure: function(error) {
+		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		    },
+		    received: function(notification) {
+		    	var subscriptions = Ext.getStore('Subscriptions');
+				
+		    	// TODO: check the year against subscriptions
+		    	// and refresh the feeds
+		        Ext.device.Notification.show({
+				    title: 'New announcement',
+				    message: notification.alert
+				});
+		    }
+		});
     }
 });

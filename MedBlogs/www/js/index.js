@@ -61,17 +61,6 @@ var app = {
         console.log("event sound " + event.sound);
         console.log("event badge " + event.badge);
         console.log("event " + event);
-        /*if (event.alert) {
-            navigator.notification.alert(event.alert);
-        }
-        if (event.badge) {
-            console.log("Set badge on  " + pushNotification);
-            pushNotification.setApplicationIconBadgeNumber(this.successHandler, event.badge);
-        }
-        if (event.sound) {
-            var snd = new Media(event.sound);
-            snd.play();
-        }*/
         
         if (event.alert) {
             navigator.notification.alert(event.alert);

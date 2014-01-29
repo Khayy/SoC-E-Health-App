@@ -63401,6 +63401,969 @@ Ext.define('Ext.dataview.List', {
     }
 });
 
+/**
+ * @private
+ *
+ * This object handles communication between the WebView and Sencha's native shell.
+ * Currently it has two primary responsibilities:
+ *
+ * 1. Maintaining unique string ids for callback functions, together with their scope objects
+ * 2. Serializing given object data into HTTP GET request parameters
+ *
+ * As an example, to capture a photo from the device's camera, we use `Ext.device.Camera.capture()` like:
+ *
+ *     Ext.device.Camera.capture(
+ *         function(dataUri){
+ *             // Do something with the base64-encoded `dataUri` string
+ *         },
+ *         function(errorMessage) {
+ *
+ *         },
+ *         callbackScope,
+ *         {
+ *             quality: 75,
+ *             width: 500,
+ *             height: 500
+ *         }
+ *     );
+ *
+ * Internally, `Ext.device.Communicator.send()` will then be invoked with the following argument:
+ *
+ *     Ext.device.Communicator.send({
+ *         command: 'Camera#capture',
+ *         callbacks: {
+ *             onSuccess: function() {
+ *                 // ...
+ *             },
+ *             onError: function() {
+ *                 // ...
+ *             }
+ *         },
+ *         scope: callbackScope,
+ *         quality: 75,
+ *         width: 500,
+ *         height: 500
+ *     });
+ *
+ * Which will then be transformed into a HTTP GET request, sent to native shell's local
+ * HTTP server with the following parameters:
+ *
+ *     ?quality=75&width=500&height=500&command=Camera%23capture&onSuccess=3&onError=5
+ *
+ * Notice that `onSuccess` and `onError` have been converted into string ids (`3` and `5`
+ * respectively) and maintained by `Ext.device.Communicator`.
+ *
+ * Whenever the requested operation finishes, `Ext.device.Communicator.invoke()` simply needs
+ * to be executed from the native shell with the corresponding ids given before. For example:
+ *
+ *     Ext.device.Communicator.invoke('3', ['DATA_URI_OF_THE_CAPTURED_IMAGE_HERE']);
+ *
+ * will invoke the original `onSuccess` callback under the given scope. (`callbackScope`), with
+ * the first argument of 'DATA_URI_OF_THE_CAPTURED_IMAGE_HERE'
+ *
+ * Note that `Ext.device.Communicator` maintains the uniqueness of each function callback and
+ * its scope object. If subsequent calls to `Ext.device.Communicator.send()` have the same
+ * callback references, the same old ids will simply be reused, which guarantee the best possible
+ * performance for a large amount of repetitive calls.
+ */
+Ext.define('Ext.device.communicator.Default', {
+
+    SERVER_URL: 'http://localhost:3000', // Change this to the correct server URL
+
+    callbackDataMap: {},
+
+    callbackIdMap: {},
+
+    idSeed: 0,
+
+    globalScopeId: '0',
+
+    generateId: function() {
+        return String(++this.idSeed);
+    },
+
+    getId: function(object) {
+        var id = object.$callbackId;
+
+        if (!id) {
+            object.$callbackId = id = this.generateId();
+        }
+
+        return id;
+    },
+
+    getCallbackId: function(callback, scope) {
+        var idMap = this.callbackIdMap,
+            dataMap = this.callbackDataMap,
+            id, scopeId, callbackId, data;
+
+        if (!scope) {
+            scopeId = this.globalScopeId;
+        } else if (scope.isIdentifiable) {
+            scopeId = scope.getId();
+        } else {
+            scopeId = this.getId(scope);
+        }
+
+        callbackId = this.getId(callback);
+
+        if (!idMap[scopeId]) {
+            idMap[scopeId] = {};
+        }
+
+        if (!idMap[scopeId][callbackId]) {
+            id = this.generateId();
+            data = {
+                callback: callback,
+                scope: scope
+            };
+
+            idMap[scopeId][callbackId] = id;
+            dataMap[id] = data;
+        }
+
+        return idMap[scopeId][callbackId];
+    },
+
+    getCallbackData: function(id) {
+        return this.callbackDataMap[id];
+    },
+
+    invoke: function(id, args) {
+        var data = this.getCallbackData(id);
+
+        data.callback.apply(data.scope, args);
+    },
+
+    send: function(args) {
+        var callbacks, scope, name, callback;
+
+        if (!args) {
+            args = {};
+        } else if (args.callbacks) {
+            callbacks = args.callbacks;
+            scope = args.scope;
+
+            delete args.callbacks;
+            delete args.scope;
+
+            for (name in callbacks) {
+                if (callbacks.hasOwnProperty(name)) {
+                    callback = callbacks[name];
+
+                    if (typeof callback == 'function') {
+                        args[name] = this.getCallbackId(callback, scope);
+                    }
+                }
+            }
+        }
+
+        args.__source = document.location.href;
+
+        var result = this.doSend(args);
+
+        return (result && result.length > 0) ? JSON.parse(result) : null;
+    },
+
+    doSend: function(args) {
+        var xhr = new XMLHttpRequest();
+
+        xhr.open('GET', this.SERVER_URL + '?' + Ext.Object.toQueryString(args) + '&_dc=' + new Date().getTime(), false);
+
+        // wrap the request in a try/catch block so we can check if any errors are thrown and attempt to call any
+        // failure/callback functions if defined
+        try {
+            xhr.send(null);
+
+            return xhr.responseText;
+        } catch(e) {
+            if (args.failure) {
+                this.invoke(args.failure);
+            } else if (args.callback) {
+                this.invoke(args.callback);
+            }
+        }
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.communicator.Android', {
+    extend:  Ext.device.communicator.Default ,
+
+    doSend: function(args) {
+        return window.Sencha.action(JSON.stringify(args));
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.Communicator', {
+               
+                                          
+                                         
+      
+
+    singleton: true,
+
+    constructor: function() {
+        if (Ext.os.is.Android) {
+            return new Ext.device.communicator.Android();
+        }
+
+        return new Ext.device.communicator.Default();
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.notification.Abstract', {
+    /**
+     * A simple way to show a notification.
+     *
+     *     Ext.device.Notification.show({
+     *        title: 'Verification',
+     *        message: 'Is your email address is: test@sencha.com',
+     *        buttons: Ext.MessageBox.OKCANCEL,
+     *        callback: function(button) {
+     *            if (button == "ok") {
+     *                console.log('Verified');
+     *            } else {
+     *                console.log('Nope.');
+     *            }
+     *        }
+     *     });
+     *
+     * @param {Object} config An object which contains the following config options:
+     *
+     * @param {String} config.title The title of the notification
+     *
+     * @param {String} config.message The message to be displayed on the notification
+     *
+     * @param {String/String[]} [config.buttons="OK"]
+     * The buttons to be displayed on the notification. It can be a string, which is the title of the button, or an array of multiple strings.
+     * Please not that you should not use more than 2 buttons, as they may not be displayed correct on all devices.
+     *
+     * @param {Function} config.callback
+     * A callback function which is called when the notification is dismissed by clicking on the configured buttons.
+     * @param {String} config.callback.buttonId The id of the button pressed, one of: 'ok', 'yes', 'no', 'cancel'.
+     *
+     * @param {Object} config.scope The scope of the callback function
+     */
+    show: function(config) {
+        if (!config.message) {
+            throw('[Ext.device.Notification#show] You passed no message');
+        }
+
+        if (!config.buttons) {
+            config.buttons = ["OK", "Cancel"];
+        }
+
+        if (!Ext.isArray(config.buttons)) {
+            config.buttons = [config.buttons];
+        }
+
+        if (!config.scope) {
+            config.scope = this;
+        }
+
+        return config;
+    },
+
+    alert: function(config) {
+        if (!config.message) {
+            throw('[Ext.device.Notification#alert] You passed no message');
+        }
+
+        if (!config.scope) {
+            config.scope = this;
+        }
+
+        return config;
+    },
+
+    confirm: function(config) {
+        if (!config.message) {
+            throw('[Ext.device.Notification#confirm] You passed no message');
+        }
+
+        if (!config.buttons) {
+            config.buttons = ["OK", "Cancel"];
+        }
+
+        if (!Ext.isArray(config.buttons)) {
+            config.buttons = [config.buttons];
+        }
+
+        if (!config.scope) {
+            config.scope = this;
+        }
+
+        return config;
+    },
+    prompt: function(config) {
+        if (!config.message) {
+            throw('[Ext.device.Notification#prompt] You passed no message');
+        }
+
+        if (!config.buttons) {
+            config.buttons = ["OK", "Cancel"];
+        }
+
+        if (!Ext.isArray(config.buttons)) {
+            config.buttons = [config.buttons];
+        }
+
+        if (!config.scope) {
+            config.scope = this;
+        }
+
+        return config;
+    },
+
+    /**
+     * Vibrates the device.
+     */
+    vibrate: Ext.emptyFn,
+
+    beep: Ext.emptyFn
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.notification.Cordova', {
+    alternateClassName: 'Ext.device.notification.PhoneGap',
+    extend:  Ext.device.notification.Abstract ,
+                                          
+
+    show: function(config) {
+        config = this.callParent(arguments);
+        this.confirm(config);
+    },
+
+    confirm: function(config) {
+        config = this.callParent(arguments);
+
+        var buttons = config.buttons,
+            ln = config.buttons.length;
+
+        if (ln && typeof buttons[0] != "string") {
+            var newButtons = [],
+                i;
+
+            for (i = 0; i < ln; i++) {
+                newButtons.push(buttons[i].text);
+            }
+            buttons = newButtons;
+        }
+
+        var callback = function(index) {
+            if (config.callback) {
+                config.callback.apply(config.scope, (buttons) ? [buttons[index - 1].toLowerCase()] : []);
+            }
+        };
+
+
+        navigator.notification.confirm(
+            config.message,
+            callback,
+            config.title,
+            buttons
+        );
+    },
+
+    alert: function(config) {
+        navigator.notification.alert(
+            config.message,
+            config.callback,
+            config.title,
+            config.buttonName
+        );
+    },
+
+    prompt: function(config) {
+        config = this.callParent(arguments);
+        var buttons = config.buttons,
+            ln = config.buttons.length;
+
+        if (ln && typeof buttons[0] != "string") {
+            var newButtons = [],
+                i;
+
+            for (i = 0; i < ln; i++) {
+                newButtons.push(buttons[i].text);
+            }
+            buttons = newButtons;
+        }
+
+        var callback = function(result) {
+            if (config.callback) {
+                config.callback.call(config.scope, (buttons) ? buttons[result.buttonIndex - 1].toLowerCase() : null, result.input1);
+            }
+        };
+
+        navigator.notification.prompt(
+            config.message,
+            callback,
+            config.title,
+            buttons
+        );
+    },
+
+    vibrate: function(time) {
+        navigator.notification.vibrate(time);
+    },
+
+    beep: function(times) {
+        navigator.notification.vibrate(times);
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.notification.Sencha', {
+    extend:  Ext.device.notification.Abstract ,
+                                          
+
+    show: function() {
+        var config = this.callParent(arguments);
+
+        Ext.device.Communicator.send({
+            command: 'Notification#show',
+            callbacks: {
+                callback: config.callback
+            },
+            scope  : config.scope,
+            title  : config.title,
+            message: config.message,
+            buttons: config.buttons.join(',') //@todo fix this
+        });
+    },
+
+    vibrate: function() {
+        Ext.device.Communicator.send({
+            command: 'Notification#vibrate'
+        });
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.util.Audio', {
+    singleton: true,
+    ctx: null,
+
+    beep: function(callback) {
+        this.oscillate(200, 1, callback);
+    },
+
+    oscillate: function(duration, type, callback) {
+        if (!this.ctx) {
+            this.ctx = new (window.audioContext || window.webkitAudioContext);
+        }
+
+        if (!this.ctx) {
+            console.log("BEEP");
+            return;
+        }
+
+        type = (type % 5) || 0;
+
+        try {
+            var osc = this.ctx.createOscillator();
+            osc.type = type;
+            osc.connect(this.ctx.destination);
+            osc.noteOn(0);
+
+            setTimeout(function() {
+                osc.noteOff(0);
+                if(callback) callback();
+            }, duration);
+        } catch (e) {
+            throw new Error("[Ext.util.Audio.oscillate] Error with Oscillator playback");
+        }
+
+    }
+
+})
+;
+
+
+
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.notification.Simulator', {
+    extend:  Ext.device.notification.Abstract ,
+                                                   
+
+    // @private
+    msg: null,
+
+	show: function() {
+        var config = this.callParent(arguments),
+            buttons = [],
+            ln = config.buttons.length,
+            button, i, callback;
+
+        //buttons
+        for (i = 0; i < ln; i++) {
+            button = config.buttons[i];
+            if (Ext.isString(button)) {
+                button = {
+                    text: config.buttons[i],
+                    itemId: config.buttons[i].toLowerCase()
+                };
+            }
+
+            buttons.push(button);
+        }
+
+        this.msg = Ext.create('Ext.MessageBox');
+
+        callback = function(itemId) {
+            if (config.callback) {
+                config.callback.apply(config.scope, [itemId]);
+            }
+        };
+
+        this.msg.show({
+            title  : config.title,
+            message: config.message,
+            scope  : this.msg,
+            buttons: buttons,
+            fn     : callback
+        });
+    },
+
+    alert: function() {
+        var config = this.callParent(arguments);
+
+        if (config.buttonName) {
+            config.buttons = [config.buttonName];
+        }
+
+        this.show(config);
+    },
+
+    confirm: function() {
+        var config = this.callParent(arguments);
+        this.show(config);
+    },
+
+    prompt: function() {
+        var config = this.callParent(arguments),
+            buttons = [],
+            ln = config.buttons.length,
+            button, i, callback;
+
+        //buttons
+        for (i = 0; i < ln; i++) {
+            button = config.buttons[i];
+            if (Ext.isString(button)) {
+                button = {
+                    text: config.buttons[i],
+                    itemId: config.buttons[i].toLowerCase()
+                };
+            }
+
+            buttons.push(button);
+        }
+
+        this.msg = Ext.create('Ext.MessageBox');
+
+        callback = function(buttonText, value) {
+            if (config.callback) {
+                config.callback.apply(config.scope, [buttonText, value]);
+            }
+        };
+
+        this.msg.prompt(config.title, config.message, callback, this.msg, config.multiLine, config.value, config.prompt);
+    },
+
+    beep: function(times) {
+        if(!Ext.isNumber(times)) times = 1;
+        var count = 0;
+        var callback = function() {
+            if(count < times) {
+                setTimeout(function() {
+                    Ext.util.Audio.beep(callback);
+                }, 50);
+            }
+            count++;
+        };
+
+        callback();
+    },
+
+    vibrate: function() {
+        //nice animation to fake vibration
+        var animation = [
+            "@-webkit-keyframes vibrate{",
+            "    from {",
+            "        -webkit-transform: rotate(-2deg);",
+            "    }",
+            "    to{",
+            "        -webkit-transform: rotate(2deg);",
+            "    }",
+            "}",
+
+            "body {",
+            "    -webkit-animation: vibrate 50ms linear 10 alternate;",
+            "}"
+        ];
+
+        var head = document.getElementsByTagName("head")[0];
+        var cssNode = document.createElement('style');
+        cssNode.innerHTML = animation.join('\n');
+        head.appendChild(cssNode);
+
+        setTimeout(function() {
+            head.removeChild(cssNode);
+        }, 400);
+    }
+});
+
+/**
+ * Provides a cross device way to show notifications. There are three different implementations:
+ *
+ * - Sencha Packager
+ * - Cordova
+ * - Simulator
+ *
+ * When this singleton is instantiated, it will automatically use the correct implementation depending on the current device.
+ *
+ * Both the Sencha Packager and Cordova versions will use the native implementations to display the notification. The
+ * Simulator implementation will use {@link Ext.MessageBox} for {@link #show} and a simply animation when you call {@link #vibrate}.
+ *
+ * ## Examples
+ *
+ * To show a simple notification:
+ *
+ *     Ext.device.Notification.show({
+ *         title: 'Verification',
+ *         message: 'Is your email address: test@sencha.com',
+ *         buttons: Ext.MessageBox.OKCANCEL,
+ *         callback: function(button) {
+ *             if (button === "ok") {
+ *                 console.log('Verified');
+ *             } else {
+ *                 console.log('Nope');
+ *             }
+ *         }
+ *     });
+ *
+ * To make the device vibrate:
+ *
+ *     Ext.device.Notification.vibrate();
+ *
+ * @mixins Ext.device.notification.Abstract
+ *
+ * @aside guide native_apis
+ */
+Ext.define('Ext.device.Notification', {
+    singleton: true,
+
+               
+                                  
+                                          
+                                         
+                                           
+      
+
+    constructor: function() {
+        var browserEnv = Ext.browser.is;
+
+        if (browserEnv.WebView) {
+            if (browserEnv.Cordova) {
+                return Ext.create('Ext.device.notification.Cordova');
+            } else if (browserEnv.Sencha) {
+                return Ext.create('Ext.device.notification.Sencha');
+            }
+        }
+
+        return Ext.create('Ext.device.notification.Simulator');
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.push.Abstract', {
+    /**
+     * @property
+     * Notification type: alert.
+     */
+    ALERT: 1,
+    /**
+     * @property
+     * Notification type: badge.
+     */
+    BADGE: 2,
+    /**
+     * @property
+     * Notification type: sound.
+     */
+    SOUND: 4,
+
+    /**
+     * @method getInitialConfig
+     * @hide
+     */
+
+    /**
+     * Registers a push notification.
+     *
+     *     Ext.device.Push.register({
+     *         type: Ext.device.Push.ALERT|Ext.device.Push.BADGE|Ext.device.Push.SOUND,
+     *         success: function(token) {
+     *             console.log('# Push notification registration successful:');
+     *             console.log('    token: ' + token);
+     *         },
+     *         failure: function(error) {
+     *             console.log('# Push notification registration unsuccessful:');
+     *             console.log('     error: ' + error);
+     *         },
+     *         received: function(notifications) {
+     *             console.log('# Push notification received:');
+     *             console.log('    ' + JSON.stringify(notifications));
+     *         }
+     *     });
+     *
+     * @param {Object} config
+     * The configuration for to pass when registering this push notification service.
+     *
+     * @param {Number} config.type
+     * The type(s) of notifications to enable. Available options are:
+     *
+     *   - {@link Ext.device.Push#ALERT}
+     *   - {@link Ext.device.Push#BADGE}
+     *   - {@link Ext.device.Push#SOUND}
+     *
+     * **Usage**
+     *
+     * Enable alerts and badges:
+     *
+     *     Ext.device.Push.register({
+     *         type: Ext.device.Push.ALERT|Ext.device.Push.BADGE
+     *         // ...
+     *     });
+     *
+     * Enable alerts, badges and sounds:
+     *
+     *     Ext.device.Push.register({
+     *         type: Ext.device.Push.ALERT|Ext.device.Push.BADGE|Ext.device.Push.SOUND
+     *         // ...
+     *     });
+     *
+     * Enable only sounds:
+     *
+     *     Ext.device.Push.register({
+     *         type: Ext.device.Push.SOUND
+     *         // ...
+     *     });
+     *
+     * @param {Function} config.success
+     * The callback to be called when registration is complete.
+     *
+     * @param {String} config.success.token
+     * A unique token for this push notification service.
+     *
+     * @param {Function} config.failure
+     * The callback to be called when registration fails.
+     *
+     * @param {String} config.failure.error
+     * The error message.
+     *
+     * @param {Function} config.received
+     * The callback to be called when a push notification is received on this device.
+     *
+     * @param {Object} config.received.notifications
+     * The notifications that have been received.
+     */
+    register: function(config) {
+        var me = this;
+
+        if (!config.received) {
+            Ext.Logger.error('Failed to pass a received callback. This is required.');
+        }
+
+        if (config.type == null) {
+            Ext.Logger.error('Failed to pass a type. This is required.');
+        }
+
+        return {
+            success: function(token) {
+                me.onSuccess(token, config.success, config.scope || me);
+            },
+            failure: function(error) {
+                me.onFailure(error, config.failure, config.scope || me);
+            },
+            received: function(notifications) {
+                me.onReceived(notifications, config.received, config.scope || me);
+            },
+            type: config.type
+        };
+    },
+
+    onSuccess: function(token, callback, scope) {
+        if (callback) {
+            callback.call(scope, token);
+        }
+    },
+
+    onFailure: function(error, callback, scope) {
+        if (callback) {
+            callback.call(scope, error);
+        }
+    },
+
+    onReceived: function(notifications, callback, scope) {
+        if (callback) {
+            callback.call(scope, notifications);
+        }
+    }
+});
+
+/**
+ * @private
+ */
+Ext.define('Ext.device.push.Sencha', {
+    extend:  Ext.device.push.Abstract ,
+
+    register: function() {
+        var config = this.callParent(arguments);
+
+        Ext.apply(config, {
+            command: 'PushNotification#Register',
+            callbacks: {
+                success: config.success,
+                failure: config.failure,
+                received: config.received
+            },
+            type: config.type
+        });
+
+        Ext.device.Communicator.send(config);
+    }
+});
+
+/**
+ * @private
+ * Interfaces with Cordova PushPlugin: https://github.com/phonegap-build/PushPlugin
+ */
+Ext.define('Ext.device.push.Cordova', {
+    extend :  Ext.device.push.Abstract ,
+
+    statics : {
+        /**
+         * @private
+         * A collection of callback methods that can be globally called by the Cordova PushPlugin
+         */
+        callbacks : {}
+    },
+
+    setPushConfig : function (config) {
+        var methodName = Ext.id(null, 'callback');
+
+        //Cordova's PushPlugin needs a static method to call when notifications are received
+        Ext.device.push.Cordova.callbacks[methodName] = config.callbacks.received;
+
+        return {
+            "badge"    : (config.callbacks.type === Ext.device.Push.BADGE) ? "true" : "false",
+            "sound"    : (config.callbacks.type === Ext.device.Push.SOUND) ? "true" : "false",
+            "alert"    : (config.callbacks.type === Ext.device.Push.ALERT) ? "true" : "false",
+            "ecb"      : 'Ext.device.push.Cordova.callbacks.' + methodName,
+            "senderID" : config.senderID
+        };
+    },
+
+    register : function () {
+        var config = arguments[0];
+
+        config.callbacks = this.callParent(arguments);
+
+        var pushConfig = this.setPushConfig(config),
+            plugin = window.plugins.pushNotification;
+
+        plugin.register(
+            config.callbacks.success,
+            config.callbacks.failure,
+            pushConfig
+        );
+
+    }
+});
+
+/**
+ * Provides a way to send push notifications to a device.
+ *
+ * # Example
+ *
+ *     Ext.device.Push.register({
+ *         type: Ext.device.Push.ALERT|Ext.device.Push.BADGE|Ext.device.Push.SOUND,
+ *         success: function(token) {
+ *             console.log('# Push notification registration successful:');
+ *             console.log('    token: ' + token);
+ *         },
+ *         failure: function(error) {
+ *             console.log('# Push notification registration unsuccessful:');
+ *             console.log('     error: ' + error);
+ *         },
+ *         received: function(notifications) {
+ *             console.log('# Push notification received:');
+ *             console.log('    ' + JSON.stringify(notifications));
+ *         }
+ *     });
+ *
+ *
+ * ## Sencha Cmd
+ *
+ * Currently only available on iOS for apps packaged with Sencha Cmd.
+ *
+ *
+ * ## Cordova / PhoneGap
+ *
+ * For apps packaged with Cordova or PhoneGap, Ext.device.Push currently supports iOS and Android via the [PushPlugin](https://github.com/phonegap-build/PushPlugin).
+ *
+ * Be sure to include that plugin in your project; Ext.device.Push simply normalizes the interface for using notifications in a Sencha Touch application.
+ *
+ *
+ * @mixins Ext.device.push.Abstract
+ *
+ * @aside guide native_apis
+ */
+Ext.define('Ext.device.Push', {
+    singleton: true,
+
+               
+                                  
+                                 
+                                 
+      
+
+    constructor: function() {
+        var browserEnv = Ext.browser.is;
+
+        if (browserEnv.WebView) {
+            if (browserEnv.Sencha) {
+                return Ext.create('Ext.device.push.Sencha');
+            } else if (browserEnv.Cordova) {
+                return Ext.create('Ext.device.push.Cordova');
+            }
+        }
+
+        return Ext.create('Ext.device.push.Abstract');
+    }
+});
+
 // Using @mixins to include all members of Ext.event.Touch
 // into here to keep documentation simpler
 /**
@@ -69217,6 +70180,787 @@ Ext.define('Ext.navigation.View', {
 });
 
 /**
+ * Adds a Load More button at the bottom of the list. When the user presses this button,
+ * the next page of data will be loaded into the store and appended to the List.
+ *
+ * By specifying `{@link #autoPaging}: true`, an 'infinite scroll' effect can be achieved,
+ * i.e., the next page of content will load automatically when the user scrolls to the
+ * bottom of the list.
+ *
+ * ## Example
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *
+ *         store: Ext.create('TweetStore'),
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.ListPaging',
+ *                 autoPaging: true
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{profile_image_url}" />',
+ *             '<div class="tweet">{text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.ListPaging', {
+    extend:  Ext.Component ,
+    alias: 'plugin.listpaging',
+
+    config: {
+        /**
+         * @cfg {Boolean} autoPaging
+         * True to automatically load the next page when you scroll to the bottom of the list.
+         */
+        autoPaging: false,
+
+        /**
+         * @cfg {String} loadMoreText The text used as the label of the Load More button.
+         */
+        loadMoreText: 'Load More...',
+
+        /**
+         * @cfg {String} noMoreRecordsText The text used as the label of the Load More button when the Store's
+         * {@link Ext.data.Store#totalCount totalCount} indicates that all of the records available on the server are
+         * already loaded
+         */
+        noMoreRecordsText: 'No More Records',
+
+        /**
+         * @private
+         * @cfg {String} loadTpl The template used to render the load more text
+         */
+        loadTpl: [
+            '<div class="{cssPrefix}loading-spinner" style="font-size: 180%; margin: 10px auto;">',
+                 '<span class="{cssPrefix}loading-top"></span>',
+                 '<span class="{cssPrefix}loading-right"></span>',
+                 '<span class="{cssPrefix}loading-bottom"></span>',
+                 '<span class="{cssPrefix}loading-left"></span>',
+            '</div>',
+            '<div class="{cssPrefix}list-paging-msg">{message}</div>'
+        ].join(''),
+
+        /**
+         * @cfg {Object} loadMoreCmp
+         * @private
+         */
+        loadMoreCmp: {
+            xtype: 'component',
+            baseCls: Ext.baseCSSPrefix + 'list-paging',
+            scrollDock: 'bottom',
+            hidden: true
+        },
+
+        /**
+         * @private
+         * @cfg {Boolean} loadMoreCmpAdded Indicates whether or not the load more component has been added to the List
+         * yet.
+         */
+        loadMoreCmpAdded: false,
+
+        /**
+         * @private
+         * @cfg {String} loadingCls The CSS class that is added to the {@link #loadMoreCmp} while the Store is loading
+         */
+        loadingCls: Ext.baseCSSPrefix + 'loading',
+
+        /**
+         * @private
+         * @cfg {Ext.List} list Local reference to the List this plugin is bound to
+         */
+        list: null,
+
+        /**
+         * @private
+         * @cfg {Ext.scroll.Scroller} scroller Local reference to the List's Scroller
+         */
+        scroller: null,
+
+        /**
+         * @private
+         * @cfg {Boolean} loading True if the plugin has initiated a Store load that has not yet completed
+         */
+        loading: false
+    },
+
+    /**
+     * @private
+     * Sets up all of the references the plugin needs
+     */
+    init: function(list) {
+        var scroller = list.getScrollable().getScroller(),
+            store    = list.getStore();
+
+        this.setList(list);
+        this.setScroller(scroller);
+        this.bindStore(list.getStore());
+
+        this.addLoadMoreCmp();
+
+        // The List's Store could change at any time so make sure we are informed when that happens
+        list.updateStore = Ext.Function.createInterceptor(list.updateStore, this.bindStore, this);
+
+        if (this.getAutoPaging()) {
+            scroller.on({
+                scrollend: this.onScrollEnd,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     */
+    bindStore: function(newStore, oldStore) {
+        if (oldStore) {
+            oldStore.un({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+
+        if (newStore) {
+            newStore.on({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Removes the List/DataView's loading mask because we show our own in the plugin. The logic here disables the
+     * loading mask immediately if the store is autoloading. If it's not autoloading, allow the mask to show the first
+     * time the Store loads, then disable it and use the plugin's loading spinner.
+     * @param {Ext.data.Store} store The store that is bound to the DataView
+     */
+    disableDataViewMask: function() {
+        var list = this.getList();
+            this._listMask = list.getLoadingText();
+
+        list.setLoadingText(null);
+    },
+
+    enableDataViewMask: function() {
+        if(this._listMask) {
+            var list = this.getList();
+            list.setLoadingText(this._listMask);
+            delete this._listMask;
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyLoadTpl: function(config) {
+        return (Ext.isObject(config) && config.isTemplate) ? config : new Ext.XTemplate(config);
+    },
+
+    /**
+     * @private
+     */
+    applyLoadMoreCmp: function(config) {
+        config = Ext.merge(config, {
+            html: this.getLoadTpl().apply({
+                cssPrefix: Ext.baseCSSPrefix,
+                message: this.getLoadMoreText()
+            }),
+            scrollDock: 'bottom',
+            listeners: {
+                tap: {
+                    fn: this.loadNextPage,
+                    scope: this,
+                    element: 'element'
+                }
+            }
+        });
+
+        return Ext.factory(config, Ext.Component, this.getLoadMoreCmp());
+    },
+
+    /**
+     * @private
+     * If we're using autoPaging and detect that the user has scrolled to the bottom, kick off loading of the next page
+     */
+    onScrollEnd: function(scroller, x, y) {
+        var list = this.getList();
+
+        if (!this.getLoading() && y >= scroller.maxPosition.y) {
+            this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
+            list.setScrollToTopOnRefresh(false);
+
+            this.loadNextPage();
+        }
+    },
+
+    /**
+     * @private
+     * Makes sure we add/remove the loading CSS class while the Store is loading
+     */
+    updateLoading: function(isLoading) {
+        var loadMoreCmp = this.getLoadMoreCmp(),
+            loadMoreCls = this.getLoadingCls();
+
+        if (isLoading) {
+            loadMoreCmp.addCls(loadMoreCls);
+        } else {
+            loadMoreCmp.removeCls(loadMoreCls);
+        }
+    },
+
+    /**
+     * @private
+     * If the Store is just about to load but it's currently empty, we hide the load more button because this is
+     * usually an outcome of setting a new Store on the List so we don't want the load more button to flash while
+     * the new Store loads
+     */
+    onStoreBeforeLoad: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }
+    },
+
+    /**
+     * @private
+     */
+    onStoreLoad: function(store) {
+        var loadCmp  = this.getLoadMoreCmp(),
+            template = this.getLoadTpl(),
+            message  = this.storeFullyLoaded() ? this.getNoMoreRecordsText() : this.getLoadMoreText();
+
+        if (store.getCount()) {
+            loadCmp.show();
+        }
+        this.setLoading(false);
+
+        //if we've reached the end of the data set, switch to the noMoreRecordsText
+        loadCmp.setHtml(template.apply({
+            cssPrefix: Ext.baseCSSPrefix,
+            message: message
+        }));
+
+        if (this.currentScrollToTopOnRefresh !== undefined) {
+            this.getList().setScrollToTopOnRefresh(this.currentScrollToTopOnRefresh);
+            delete this.currentScrollToTopOnRefresh;
+        }
+
+        this.enableDataViewMask();
+    },
+
+    onFilter: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }else {
+            this.getLoadMoreCmp().show();
+        }
+    },
+
+    /**
+     * @private
+     * Because the attached List's inner list element is rendered after our init function is called,
+     * we need to dynamically add the loadMoreCmp later. This does this once and caches the result.
+     */
+    addLoadMoreCmp: function() {
+        var list = this.getList(),
+            cmp  = this.getLoadMoreCmp();
+
+        if (!this.getLoadMoreCmpAdded()) {
+            list.add(cmp);
+
+            /**
+             * @event loadmorecmpadded  Fired when the Load More component is added to the list. Fires on the List.
+             * @param {Ext.plugin.ListPaging} this The list paging plugin
+             * @param {Ext.List} list The list
+             */
+            list.fireEvent('loadmorecmpadded', this, list);
+            this.setLoadMoreCmpAdded(true);
+        }
+
+        return cmp;
+    },
+
+    /**
+     * @private
+     * Returns true if the Store is detected as being fully loaded, or the server did not return a total count, which
+     * means we're in 'infinite' mode
+     * @return {Boolean}
+     */
+    storeFullyLoaded: function() {
+        var store = this.getList().getStore(),
+            total = store.getTotalCount();
+
+        return total !== null ? store.getTotalCount() <= (store.currentPage * store.getPageSize()) : false;
+    },
+
+    /**
+     * @private
+     */
+    loadNextPage: function() {
+        var me = this;
+        if (!me.storeFullyLoaded()) {
+            me.disableDataViewMask();
+            me.setLoading(true);
+            me.getList().getStore().nextPage({ addRecords: true });
+        }
+    }
+});
+
+/**
+ * This plugin adds pull to refresh functionality to the List.
+ *
+ * ## Example
+ *
+ *     @example
+ *     var store = Ext.create('Ext.data.Store', {
+ *         fields: ['name', 'img', 'text'],
+ *         data: [
+ *             {
+ *                 name: 'rdougan',
+ *                 img: 'http://a0.twimg.com/profile_images/1261180556/171265_10150129602722922_727937921_7778997_8387690_o_reasonably_small.jpg',
+ *                 text: 'JavaScript development'
+ *             }
+ *         ]
+ *     });
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *         fullscreen: true,
+ *
+ *         store: store,
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.PullRefresh',
+ *                 pullText: 'Pull down for more new Tweets!'
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{img}" alt="{name} photo" />',
+ *             '<div class="tweet"><b>{name}:</b> {text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.PullRefresh', {
+    extend:  Ext.Component ,
+    alias: 'plugin.pullrefresh',
+                                 
+
+    config: {
+        /**
+         * @cfg {Ext.dataview.List} list
+         * The list to which this PullRefresh plugin is connected.
+         * This will usually by set automatically when configuring the list with this plugin.
+         * @accessor
+         */
+        list: null,
+
+        /**
+         * @cfg {String} pullText The text that will be shown while you are pulling down.
+         * @accessor
+         */
+        pullText: 'Pull down to refresh...',
+
+        /**
+         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
+         * @accessor
+         */
+        releaseText: 'Release to refresh...',
+
+        /**
+         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
+         * @accessor
+         */
+        loadingText: 'Loading...',
+
+        /**
+         * @cfg {String} loadedText The text that will be when data has been loaded.
+         * @accessor
+         */
+        loadedText: 'Loaded.',
+
+        /**
+         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
+         * @accessor
+         */
+        lastUpdatedText: 'Last Updated:&nbsp;',
+
+        /**
+         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
+         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
+         * that will be loading and have unspecified heights.
+         */
+        scrollerAutoRefresh: false,
+
+        /**
+         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
+         * If false call {@link #snapBack}() to manually snap the pulldown back.
+         */
+        autoSnapBack: true,
+
+        /**
+         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
+         * @accessor
+         */
+        snappingAnimationDuration: 300,
+        /**
+         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
+         */
+        lastUpdatedDateFormat: 'm/d/Y h:iA',
+
+        /**
+         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
+         */
+        overpullSnapBackDuration: 300,
+
+        /**
+         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
+         * Will be passed a config object with properties state, message and updated
+         *
+         * @accessor
+         */
+        pullTpl: [
+            '<div class="x-list-pullrefresh-arrow"></div>',
+            '<div class="x-loading-spinner">',
+                '<span class="x-loading-top"></span>',
+                '<span class="x-loading-right"></span>',
+                '<span class="x-loading-bottom"></span>',
+                '<span class="x-loading-left"></span>',
+            '</div>',
+            '<div class="x-list-pullrefresh-wrap">',
+                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
+                '<div class="x-list-pullrefresh-updated">{updated}</div>',
+            '</div>'
+        ].join(''),
+
+        translatable: true
+    },
+
+    // @private
+    $state: "pull",
+    // @private
+    getState: function() {
+        return this.$state
+    },
+    // @private
+    setState: function(value) {
+        this.$state = value;
+        this.updateView();
+    },
+    // @private
+    $isSnappingBack: false,
+    // @private
+    getIsSnappingBack: function() {
+        return this.$isSnappingBack;
+    },
+    // @private
+    setIsSnappingBack: function(value) {
+        this.$isSnappingBack = value;
+    },
+
+    // @private
+    init: function(list) {
+        var me = this;
+
+        me.setList(list);
+        me.initScrollable();
+    },
+
+    getElementConfig: function() {
+        return {
+            reference: 'element',
+            classList: ['x-unsized'],
+            children: [
+                {
+                    reference: 'innerElement',
+                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
+                }
+            ]
+        };
+    },
+
+    // @private
+    initScrollable: function() {
+        var me = this,
+            list = me.getList(),
+            scrollable = list.getScrollable(),
+            scroller;
+
+        if (!scrollable) {
+            return;
+        }
+
+        scroller = scrollable.getScroller();
+        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
+
+        me.lastUpdated = new Date();
+
+        list.insert(0, me);
+
+        scroller.on({
+            scroll: me.onScrollChange,
+            scope: me
+        });
+
+        this.updateView();
+    },
+
+    // @private
+    applyPullTpl: function(config) {
+        if (config instanceof Ext.XTemplate) {
+            return config
+        } else {
+            return new Ext.XTemplate(config);
+        }
+    },
+
+    // @private
+    updateList: function(newList, oldList) {
+        var me = this;
+
+        if (newList && newList != oldList) {
+            newList.on({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        } else if (oldList) {
+            oldList.un({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        }
+    },
+
+    // @private
+    getPullHeight: function() {
+       return this.innerElement.getHeight();
+    },
+
+    /**
+     * @private
+     * Attempts to load the newest posts via the attached List's Store's Proxy
+     */
+    fetchLatest: function() {
+        var store = this.getList().getStore(),
+            proxy = store.getProxy(),
+            operation;
+
+        operation = Ext.create('Ext.data.Operation', {
+            page: 1,
+            start: 0,
+            model: store.getModel(),
+            limit: store.getPageSize(),
+            action: 'read',
+            sorters: store.getSorters(),
+            filters: store.getRemoteFilter() ? store.getFilters() : []
+        });
+
+        proxy.read(operation, this.onLatestFetched, this);
+    },
+
+    /**
+     * @private
+     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
+     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
+     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
+     * timeline between the new and the old records.
+     */
+    onLatestFetched: function(operation) {
+        var store = this.getList().getStore(),
+            oldRecords = store.getData(),
+            newRecords = operation.getRecords(),
+            length = newRecords.length,
+            toInsert = [],
+            newRecord, oldRecord, i;
+
+        for (i = 0; i < length; i++) {
+            newRecord = newRecords[i];
+            oldRecord = oldRecords.getByKey(newRecord.getId());
+
+            if (oldRecord) {
+                oldRecord.set(newRecord.getData());
+            } else {
+                toInsert.push(newRecord);
+            }
+
+            oldRecord = undefined;
+        }
+
+        store.insert(0, toInsert);
+        this.setState("loaded");
+        this.fireEvent('latestfetched', this, toInsert);
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * Snaps the List back to the top after a pullrefresh is complete
+     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
+     */
+    snapBack: function(force) {
+        if(this.getState() !== "loaded" && force !== true) return;
+
+        var list = this.getList(),
+            scroller = list.getScrollable().getScroller();
+
+        scroller.refresh();
+        scroller.minPosition.y = 0;
+
+        scroller.on({
+            scrollend: this.onSnapBackEnd,
+            single: true,
+            scope: this
+        });
+
+        this.setIsSnappingBack(true);
+        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
+    },
+
+    /**
+     * @private
+     * Called when PullRefresh has been snapped back to the top
+     */
+    onSnapBackEnd: function() {
+        this.setState("pull");
+        this.setIsSnappingBack(false);
+    },
+
+    /**
+     * @private
+     * Called when the Scroller updates from the list
+     * @param scroller
+     * @param x
+     * @param y
+     */
+    onScrollChange: function(scroller, x, y) {
+        if (y <= 0) {
+            var pullHeight = this.getPullHeight(),
+                isSnappingBack = this.getIsSnappingBack();
+
+            if(this.getState() === "loaded" && !isSnappingBack) {
+                this.snapBack();
+            }
+
+            if (this.getState() !== "loading" && this.getState() !=="loaded") {
+                if (-y >= pullHeight + 10) {
+                    this.setState("release");
+                    scroller.getContainer().onBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
+                    this.setState("pull");
+                    scroller.getContainer().unBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                }
+            }
+            this.getTranslatable().translate(0, -y);
+        }
+    },
+
+    /**
+     * @private
+     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
+     */
+    onScrollerDragEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            scroller.minPosition.y = -this.getPullHeight();
+            scroller.on({
+                scrollend: 'fetchLatest',
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Updates the content based on the PullRefresh Template
+     */
+    updateView: function() {
+        var state = this.getState(),
+            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
+            templateConfig = {state: state, updated: lastUpdatedText},
+            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
+            fn = "get" + stateFn + "Text";
+
+        if (this[fn] && Ext.isFunction(this[fn])) {
+            templateConfig.message = this[fn].call(this);
+        }
+
+        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
+        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
+        this.getPullTpl().overwrite(this.innerElement, templateConfig);
+    }
+}, function() {
+
+    /**
+     * Updates the PullRefreshText.
+     * @method setPullRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
+
+    /**
+     * Updates the ReleaseRefreshText.
+     * @method setReleaseRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} pullReleaseText
+                 * Optional Text during the Release State.
+                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
+                 */
+                if (config.hasOwnProperty('pullReleaseText')) {
+                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
+                    config.releaseText = config.pullReleaseText;
+                    delete config.pullReleaseText;
+                }
+
+                /**
+                 * @cfg {String} pullRefreshText
+                 * Optional Text during the Pull State.
+                 * @deprecated 2.3.0 Please use {@link #pullText} instead
+                 */
+                if (config.hasOwnProperty('pullRefreshText')) {
+                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
+                    config.pullText = config.pullRefreshText;
+                    delete config.pullRefreshText;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+});
+
+/**
  * Used in the {@link Ext.tab.Bar} component. This shouldn't be used directly, instead use
  * {@link Ext.tab.Bar} or {@link Ext.tab.Panel}.
  * @private
@@ -72893,6 +74637,7 @@ Ext.define('MedBlogs.model.Announcements',{
 		[
 		    'title',
 			'link',
+			{name: 'pubDate', type: 'int'},
 			'date',
 			'creator',
 			'category',
@@ -72974,7 +74719,7 @@ Ext.define('MedBlogs.model.FlashCards', {
     }
 });
 
-Ext.define('MedBlogs.util.Proxy', {
+Ext.define('MedBlogs.util.Proxy.CardCategories', {
     singleton: true,
                                  
 
@@ -73012,26 +74757,104 @@ Ext.define('MedBlogs.store.CardCategories', {
     }
 });
 
-Ext.define('MedBlogs.store.Announcements',{
-	extend:  Ext.data.Store ,
-	config: {
-		model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
-        //If we need additional sorting - example grouper / sorter
-        //sorters: 'firstName',
-        //grouper: {
-        //    groupFn: function(record) {
-        //       return record.get('lastName')[0];
-        //    }
-        //},
-        proxy: {
-            type: 'ajax',
-            url: 'feeds.json'
-        }
-		
-	}
+Ext.define('MedBlogs.util.Proxy.Announcements', {
+    singleton: true,
+               
+                                       
+                        
+      
+
+    process: function(url) {
+        var announcementStore = Ext.getStore('Announcements'),
+            announcementIds = [],
+            announcementModel;
+
+        Ext.data.JsonP.request({
+            url: url,
+            //callbackKey: 'feedscb',
+            callbackName: 'feedscb',    
+            
+            callback: function(successful, data){
+                if(successful === true) {
+                    Ext.Array.each(data.items, function(item) {
+                            // don't add duplicates and make the dates into date format
+                            //if (announcementIds.indexOf(item.id) == -1) {
+                                announcementIds.push(item.id);
+
+                                announcementModel = Ext.create('MedBlogs.model.Announcements', item);
+                                var tempDate = new Date(item.pubDate);
+                                //JANUARY 19, 2014
+                                var month = tempDate.getMonth() + 1;
+                                if(month<10) month = '0' + month;
+                                var toDisplay = tempDate.getDate() + '/' + month + '/' + tempDate.getFullYear();
+                                announcementModel.set('date', toDisplay);
+                                announcementStore.add(announcementModel);
+                            //}
+                    });
+                } else {
+                    Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
+                }
+            }
+            /*
+
+            success: function(data) {
+                Ext.Array.each(data.items, function(item) {
+                        // don't add duplicates and make the dates into date format
+                        if (announcementIds.indexOf(item.id) == -1) {
+                            announcementIds.push(item.id);
+
+                            announcementModel = Ext.create('MedBlogs.model.Announcements', item);
+                            announcementModel.set('date') = toString(new Date(item.pubDate));
+                            announcementStore.add(announcementModel);
+                        }
+                });
+            },
+            failure: function(){
+                Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
+            } */
+        });
+    }
 });
 
+Ext.define('MedBlogs.store.Announcements', {
+    extend:  Ext.data.Store ,
+
+    config: {
+        model: 'MedBlogs.model.Announcements',
+        autoLoad: true,
+        pageSize: 10,
+        sorters:[{
+            property:'pubDate',
+            direction:'DESC'
+        }]
+    }
+});
+
+/*Ext.define('MedBlogs.store.Announcements',{
+    extend: 'Ext.data.Store',
+
+    requires: [
+        'MedBlogs.model.Announcements',
+        'Ext.data.proxy.JsonP'
+    ],
+    config: {
+        model: 'MedBlogs.model.Announcements',
+        autoLoad: true,
+        pageSize: 10,
+        proxy: {
+            type: 'jsonp',
+            url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
+            startParam:'offset',
+            limitParam:'limit',
+            page:'page',
+            reader: {
+                type: 'json',
+                rootProperty: 'items'
+            }
+        }
+    }
+});
+*/
 
 Ext.define('MedBlogs.view.feeds.Feeds', {
 	extend:  Ext.Panel ,
@@ -73053,7 +74876,19 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 			{
 				xtype: 'list',
 				variableHeights: true,
+				disclosure: false,
 				store: 'Announcements',
+				plugins: [
+					{
+						xclass:'Ext.plugin.ListPaging',
+						autoLoad:true
+					},
+                    {
+                        xclass: 'Ext.plugin.PullRefresh',           
+                        pullText: 'Pull to refresh announcements!'
+                    }                        
+				],
+				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
 							'<div class="category">{category}</div>',
 							'<span class="title">{title}</span><br/>',
@@ -73747,7 +75582,9 @@ Ext.application({
     name: 'MedBlogs',
 
                
-                                
+                                 
+                          
+                                 
       
 
     controllers: [
@@ -73807,13 +75644,17 @@ Ext.application({
 
     launch: function() {
         Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.process('feed.js');
+        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+
+        Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
+        MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-        
+       // this.pushInit();
+       
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
@@ -73876,6 +75717,56 @@ Ext.application({
 			
 			this.launchView = 'Subscriptions';
 	    }
+    },
+    
+    pushInit: function() {
+    	var params = {	type: subscribe };
+    	if (Ext.os.is.iOS) {
+	    	params.os = 'ios';
+    	} else if (Ext.os.is.Android) {
+	    	params.os = 'android';
+    	}
+    	
+	    Ext.device.Push.register({
+		    type: Ext.device.Push.ALERT,
+		    success: function(token) {
+		    	params.token = token;
+		    	
+		        Ext.Msg.alert("Token", "Device token:" + token);
+		        Ext.Ajax.request({
+		            url: 'the push server url',
+		            method: 'GET',
+		            headers: {
+		                'Accept': 'application/json',
+		                'Content-Type': 'application/json'
+		            },
+		            timeout: 30000,
+		            params: Ext.Object.toQueryString(params),
+		
+		            success: function(response, opts) {
+		                if (!(response && response.responseText === 'true')) {
+		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                }
+		            }, 
+		            failure: function(response, opts) {
+		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		            }
+		        });
+		    },
+		    failure: function(error) {
+		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		    },
+		    received: function(notification) {
+		    	var subscriptions = Ext.getStore('Subscriptions');
+				
+		    	// TODO: check the year against subscriptions
+		    	// and refresh the feeds
+		        Ext.device.Notification.show({
+				    title: 'New announcement',
+				    message: notification.alert
+				});
+		    }
+		});
     }
 });
 
