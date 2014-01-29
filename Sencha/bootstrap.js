@@ -17,7 +17,8 @@ Ext.Loader.addClassPathMappings({
   "Ext.device.sqlite.SQLResultSetRowList": "touch/src/device/sqlite/Sencha.js",
   "Ext.device.sqlite.SQLTransaction": "touch/src/device/sqlite/Sencha.js",
   "MedBlogs": "app",
-  "MedBlogs.util": "app"
+  "MedBlogs.util": "app",
+  "MyApp": "app"
 });
 Ext.ClassManager.addNameAlternateMappings({
   "Ext.AbstractComponent": [],
@@ -655,6 +656,7 @@ Ext.ClassManager.addNameAlternateMappings({
   "Ext.viewport.WindowsPhone": [
     "Ext.viewport.WP"
   ],
+  "MedBlogs.CustomPullRefresh": [],
   "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.controller.FlashCardsController": [],
   "MedBlogs.controller.PinnedPostsNavigationController": [],
@@ -665,12 +667,14 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.model.PinnedPosts": [],
   "MedBlogs.model.Subscriptions": [],
   "MedBlogs.store.Announcements": [],
+  "MedBlogs.store.AnnouncementsStore": [],
   "MedBlogs.store.CardCategories": [],
   "MedBlogs.store.FlashCards": [],
   "MedBlogs.store.HelpStore": [],
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
   "MedBlogs.util.Proxy.Announcements": [],
+  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [],
   "MedBlogs.view.FlashCardsNavigation": [],
   "MedBlogs.view.Help": [],
@@ -682,7 +686,8 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.view.flashcards.Card": [],
   "MedBlogs.view.flashcards.SelectScreen": [],
   "MedBlogs.view.pinned.PinnedPosts": [],
-  "MedBlogs.view.pinned.PostDetail": []
+  "MedBlogs.view.pinned.PostDetail": [],
+  "MyApp.proxy.AnnouncementProxy": []
 });
 Ext.ClassManager.addNameAliasMappings({
   "Ext.AbstractComponent": [],
@@ -1421,6 +1426,9 @@ Ext.ClassManager.addNameAliasMappings({
   "Ext.viewport.Ios": [],
   "Ext.viewport.Viewport": [],
   "Ext.viewport.WindowsPhone": [],
+  "MedBlogs.CustomPullRefresh": [
+    "plugin.custompullrefresh"
+  ],
   "MedBlogs.controller.FeedsNavigationController": [],
   "MedBlogs.controller.FlashCardsController": [],
   "MedBlogs.controller.PinnedPostsNavigationController": [],
@@ -1431,12 +1439,14 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.model.PinnedPosts": [],
   "MedBlogs.model.Subscriptions": [],
   "MedBlogs.store.Announcements": [],
+  "MedBlogs.store.AnnouncementsStore": [],
   "MedBlogs.store.CardCategories": [],
   "MedBlogs.store.FlashCards": [],
   "MedBlogs.store.HelpStore": [],
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
   "MedBlogs.util.Proxy.Announcements": [],
+  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [
     "widget.feedsNavigation"
   ],
@@ -1470,5 +1480,8 @@ Ext.ClassManager.addNameAliasMappings({
   ],
   "MedBlogs.view.pinned.PostDetail": [
     "widget.postDetail"
+  ],
+  "MyApp.proxy.AnnouncementProxy": [
+    "proxy.announcementproxy"
   ]
 });

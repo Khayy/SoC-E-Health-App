@@ -17,6 +17,8 @@ Ext.application({
         'Ext.ux.touch.SwipeTabs',
         'Ext.device.Push',
         'Ext.device.Notification'
+        'MedBlogs.CustomPullRefresh'
+        //,'MedBlogs.CustomListPaging'
     ],
 
     controllers: [
@@ -77,8 +79,11 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
-        Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+
+        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
+        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();

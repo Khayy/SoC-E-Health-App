@@ -65720,30 +65720,50 @@ Ext.define('AccordionListExample.store.PL', {
     }
 });
 
+Ext.define('AccordionListExample.model.TaskOur', {
+    extend:  Ext.data.Model ,
+	config: {
+		fields: 
+		[
+			'uid',
+		    'title',
+			'link',
+			{name: 'pubDate', type: 'int'},
+			'date',
+			'creator',
+			'category',
+			'description'
+		]
+	}
+});
+
 Ext.define('AccordionListExample.store.BigTask', {
     extend:  Ext.data.TreeStore ,
                
-                                          
+                                             
                               
       
 
     config: {
         defaultRootProperty: 'items',
-        model: 'AccordionListExample.model.Task',
-
+        model: 'AccordionListExample.model.TaskOur',
+        pageSize: 10,
         proxy: {
             type: 'jsonp',
-            url: 'http://kawanoshinobu-api.herokuapp.com/task',
+            url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
             startParam:'offset',
             limitParam:'limit',
+            //callbackName: 'feedscb',
             reader: {
-                type: 'json',
-                rootProperty: 'items'
+                type: 'json'//,
+                //rootProperty: 'items'
             }
         }
     }
 
 });
+
+
 
 Ext.define('AccordionListExample.model.Components', {
     extend:  Ext.data.Model ,
@@ -66016,6 +66036,18 @@ Ext.define('AccordionListExample.view.Main', {
                     {
                         xtype: 'accordionlist',
                         store: Ext.create('AccordionListExample.store.BigTask'),
+                        headerItemTpl: [
+                            '<tpl >',
+                                '<div class="down"></div>',
+                                '<div> {title}</div>',
+                            '</tpl>'
+                        ].join(''),
+                        contentItemTpl: [
+                            '<div style="display:-webkit-box;width:100%;text-align:right;">',
+                                '<div style="width:20%;"></div>',
+                                '<div style="-webkit-box-flex:1;color:#157fcc;">${title}</div>',
+                            '</div>'
+                        ].join(''),
                         listConfig: {
                             plugins: [
                                 {
@@ -75510,7 +75542,8 @@ Ext.application({
     models:[
         'Task',
         'PL',
-        'Components'
+        'Components',
+        'TaskOur'
     ],
 
     views: [

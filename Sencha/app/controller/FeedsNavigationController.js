@@ -39,13 +39,14 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
-		
-        this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "feedsScreen") {
-
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
         } else {
+            this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
             this.hideButton(this.getSettingsButton());
             this.showButton(this.getDoneButton());
         }
@@ -54,8 +55,11 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     onMainPop: function(view, item) {
     	// deselect any tapped announcements
 		this.getFeedList().deselectAll();
-        if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
+        if (item.xtype == "settingsScreen") {
             this.showButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());

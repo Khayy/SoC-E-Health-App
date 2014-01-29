@@ -57978,6 +57978,292 @@ Ext.define('Ext.data.identifier.Uuid', {
 
 /**
  * @author Ed Spencer
+ * @aside guide proxies
+ *
+ * The JsonP proxy is useful when you need to load data from a domain other than the one your application is running on. If
+ * your application is running on http://domainA.com it cannot use {@link Ext.data.proxy.Ajax Ajax} to load its data
+ * from http://domainB.com because cross-domain ajax requests are prohibited by the browser.
+ *
+ * We can get around this using a JsonP proxy. JsonP proxy injects a `<script>` tag into the DOM whenever an AJAX request
+ * would usually be made. Let's say we want to load data from http://domainB.com/users - the script tag that would be
+ * injected might look like this:
+ *
+ *     <script src="http://domainB.com/users?callback=someCallback"></script>
+ *
+ * When we inject the tag above, the browser makes a request to that url and includes the response as if it was any
+ * other type of JavaScript include. By passing a callback in the url above, we're telling domainB's server that we want
+ * to be notified when the result comes in and that it should call our callback function with the data it sends back. So
+ * long as the server formats the response to look like this, everything will work:
+ *
+ *     someCallback({
+ *         users: [
+ *             {
+ *                 id: 1,
+ *                 name: "Ed Spencer",
+ *                 email: "ed@sencha.com"
+ *             }
+ *         ]
+ *     });
+ *
+ * As soon as the script finishes loading, the 'someCallback' function that we passed in the url is called with the JSON
+ * object that the server returned.
+ *
+ * JsonP proxy takes care of all of this automatically. It formats the url you pass, adding the callback parameter
+ * automatically. It even creates a temporary callback function, waits for it to be called and then puts the data into
+ * the Proxy making it look just like you loaded it through a normal {@link Ext.data.proxy.Ajax AjaxProxy}. Here's how
+ * we might set that up:
+ *
+ *     Ext.define('User', {
+ *         extend: 'Ext.data.Model',
+ *         config: {
+ *             fields: ['id', 'name', 'email']
+ *         }
+ *     });
+ *
+ *     var store = Ext.create('Ext.data.Store', {
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users'
+ *         }
+ *     });
+ *
+ *     store.load();
+ *
+ * That's all we need to do - JsonP proxy takes care of the rest. In this case the Proxy will have injected a script tag
+ * like this:
+ *
+ *     <script src="http://domainB.com/users?callback=callback1"></script>
+ *
+ * # Customization
+ *
+ * This script tag can be customized using the {@link #callbackKey} configuration. For example:
+ *
+ *     var store = Ext.create('Ext.data.Store', {
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users',
+ *             callbackKey: 'theCallbackFunction'
+ *         }
+ *     });
+ *
+ *     store.load();
+ *
+ * Would inject a script tag like this:
+ *
+ *     <script src="http://domainB.com/users?theCallbackFunction=callback1"></script>
+ *
+ * # Implementing on the server side
+ *
+ * The remote server side needs to be configured to return data in this format. Here are suggestions for how you might
+ * achieve this using Java, PHP and ASP.net:
+ *
+ * Java:
+ *
+ *     boolean jsonP = false;
+ *     String cb = request.getParameter("callback");
+ *     if (cb != null) {
+ *         jsonP = true;
+ *         response.setContentType("text/javascript");
+ *     } else {
+ *         response.setContentType("application/x-json");
+ *     }
+ *     Writer out = response.getWriter();
+ *     if (jsonP) {
+ *         out.write(cb + "(");
+ *     }
+ *     out.print(dataBlock.toJsonString());
+ *     if (jsonP) {
+ *         out.write(");");
+ *     }
+ *
+ * PHP:
+ *
+ *     $callback = $_REQUEST['callback'];
+ *
+ *     // Create the output object.
+ *     $output = array('a' => 'Apple', 'b' => 'Banana');
+ *
+ *     //start output
+ *     if ($callback) {
+ *         header('Content-Type: text/javascript');
+ *         echo $callback . '(' . json_encode($output) . ');';
+ *     } else {
+ *         header('Content-Type: application/x-json');
+ *         echo json_encode($output);
+ *     }
+ *
+ * ASP.net:
+ *
+ *     String jsonString = "{success: true}";
+ *     String cb = Request.Params.Get("callback");
+ *     String responseString = "";
+ *     if (!String.IsNullOrEmpty(cb)) {
+ *         responseString = cb + "(" + jsonString + ")";
+ *     } else {
+ *         responseString = jsonString;
+ *     }
+ *     Response.Write(responseString);
+ */
+Ext.define('Ext.data.proxy.JsonP', {
+    extend:  Ext.data.proxy.Server ,
+    alternateClassName: 'Ext.data.ScriptTagProxy',
+    alias: ['proxy.jsonp', 'proxy.scripttag'],
+                                 
+
+    config: {
+        defaultWriterType: 'base',
+
+        /**
+         * @cfg {String} callbackKey
+         * See {@link Ext.data.JsonP#callbackKey}.
+         * @accessor
+         */
+        callbackKey : 'callback',
+
+        /**
+         * @cfg {String} recordParam
+         * The param name to use when passing records to the server (e.g. 'records=someEncodedRecordString').
+         * @accessor
+         */
+        recordParam: 'records',
+
+        /**
+         * @cfg {Boolean} autoAppendParams
+         * `true` to automatically append the request's params to the generated url.
+         * @accessor
+         */
+        autoAppendParams: true
+    },
+
+    /**
+     * Performs the read request to the remote domain. JsonP proxy does not actually create an Ajax request,
+     * instead we write out a `<script>` tag based on the configuration of the internal Ext.data.Request object
+     * @param {Ext.data.Operation} operation The {@link Ext.data.Operation Operation} object to execute.
+     * @param {Function} callback A callback function to execute when the Operation has been completed.
+     * @param {Object} scope The scope to execute the callback in.
+     * @return {Object}
+     * @protected
+     */
+    doRequest: function(operation, callback, scope) {
+        var action = operation.getAction();
+        if (action !== 'read') {
+            Ext.Logger.error('JsonP proxies can only be used to read data.');
+        }
+
+        //generate the unique IDs for this request
+        var me      = this,
+            request = me.buildRequest(operation),
+            params  = request.getParams();
+
+        // apply JsonP proxy-specific attributes to the Request
+        request.setConfig({
+            callbackKey: me.getCallbackKey(),
+            timeout: me.getTimeout(),
+            scope: me,
+            callback: me.createRequestCallback(request, operation, callback, scope)
+        });
+
+        // Prevent doubling up because the params are already added to the url in buildUrl
+        if (me.getAutoAppendParams()) {
+            request.setParams({});
+        }
+
+        request.setJsonP(Ext.data.JsonP.request(request.getCurrentConfig()));
+
+        // Set the params back once we have made the request though
+        request.setParams(params);
+
+        operation.setStarted();
+
+        me.lastRequest = request;
+
+        return request;
+    },
+
+    /**
+     * @private
+     * Creates and returns the function that is called when the request has completed. The returned function
+     * should accept a Response object, which contains the response to be read by the configured Reader.
+     * The third argument is the callback that should be called after the request has been completed and the Reader has decoded
+     * the response. This callback will typically be the callback passed by a store, e.g. in proxy.read(operation, theCallback, scope)
+     * theCallback refers to the callback argument received by this function.
+     * See {@link #doRequest} for details.
+     * @param {Ext.data.Request} request The Request object.
+     * @param {Ext.data.Operation} operation The Operation being executed.
+     * @param {Function} callback The callback function to be called when the request completes. This is usually the callback
+     * passed to doRequest.
+     * @param {Object} scope The scope in which to execute the callback function.
+     * @return {Function} The callback function.
+     */
+    createRequestCallback: function(request, operation, callback, scope) {
+        var me = this;
+
+        return function(success, response, errorType) {
+            delete me.lastRequest;
+            me.processResponse(success, operation, request, response, callback, scope);
+        };
+    },
+
+    // @inheritdoc
+    setException: function(operation, response) {
+        operation.setException(operation.getRequest().getJsonP().errorType);
+    },
+
+
+    /**
+     * Generates a url based on a given Ext.data.Request object. Adds the params and callback function name to the url
+     * @param {Ext.data.Request} request The request object.
+     * @return {String} The url.
+     */
+    buildUrl: function(request) {
+        var me      = this,
+            url     = me.callParent(arguments),
+            params  = Ext.apply({}, request.getParams()),
+            filters = params.filters,
+            filter, i, value;
+
+        delete params.filters;
+
+        if (me.getAutoAppendParams()) {
+            url = Ext.urlAppend(url, Ext.Object.toQueryString(params));
+        }
+
+        if (filters && filters.length) {
+            for (i = 0; i < filters.length; i++) {
+                filter = filters[i];
+                value = filter.getValue();
+                if (value) {
+                    url = Ext.urlAppend(url, filter.getProperty() + "=" + value);
+                }
+            }
+        }
+
+        return url;
+    },
+
+    /**
+     * @inheritdoc
+     */
+    destroy: function() {
+        this.abort();
+        this.callParent(arguments);
+    },
+
+    /**
+     * Aborts the current server request if one is currently running.
+     */
+    abort: function() {
+        var lastRequest = this.lastRequest;
+        if (lastRequest) {
+            Ext.data.JsonP.abort(lastRequest.getJsonP());
+        }
+    }
+});
+
+/**
+ * @author Ed Spencer
  *
  * WebStorageProxy is simply a superclass for the {@link Ext.data.proxy.LocalStorage LocalStorage} proxy. It uses the
  * new HTML5 key/value client-side storage objects to save {@link Ext.data.Model model instances} for offline use.
@@ -70961,6 +71247,787 @@ Ext.define('Ext.plugin.PullRefresh', {
 });
 
 /**
+ * Adds a Load More button at the bottom of the list. When the user presses this button,
+ * the next page of data will be loaded into the store and appended to the List.
+ *
+ * By specifying `{@link #autoPaging}: true`, an 'infinite scroll' effect can be achieved,
+ * i.e., the next page of content will load automatically when the user scrolls to the
+ * bottom of the list.
+ *
+ * ## Example
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *
+ *         store: Ext.create('TweetStore'),
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.ListPaging',
+ *                 autoPaging: true
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{profile_image_url}" />',
+ *             '<div class="tweet">{text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.ListPaging', {
+    extend:  Ext.Component ,
+    alias: 'plugin.listpaging',
+
+    config: {
+        /**
+         * @cfg {Boolean} autoPaging
+         * True to automatically load the next page when you scroll to the bottom of the list.
+         */
+        autoPaging: false,
+
+        /**
+         * @cfg {String} loadMoreText The text used as the label of the Load More button.
+         */
+        loadMoreText: 'Load More...',
+
+        /**
+         * @cfg {String} noMoreRecordsText The text used as the label of the Load More button when the Store's
+         * {@link Ext.data.Store#totalCount totalCount} indicates that all of the records available on the server are
+         * already loaded
+         */
+        noMoreRecordsText: 'No More Records',
+
+        /**
+         * @private
+         * @cfg {String} loadTpl The template used to render the load more text
+         */
+        loadTpl: [
+            '<div class="{cssPrefix}loading-spinner" style="font-size: 180%; margin: 10px auto;">',
+                 '<span class="{cssPrefix}loading-top"></span>',
+                 '<span class="{cssPrefix}loading-right"></span>',
+                 '<span class="{cssPrefix}loading-bottom"></span>',
+                 '<span class="{cssPrefix}loading-left"></span>',
+            '</div>',
+            '<div class="{cssPrefix}list-paging-msg">{message}</div>'
+        ].join(''),
+
+        /**
+         * @cfg {Object} loadMoreCmp
+         * @private
+         */
+        loadMoreCmp: {
+            xtype: 'component',
+            baseCls: Ext.baseCSSPrefix + 'list-paging',
+            scrollDock: 'bottom',
+            hidden: true
+        },
+
+        /**
+         * @private
+         * @cfg {Boolean} loadMoreCmpAdded Indicates whether or not the load more component has been added to the List
+         * yet.
+         */
+        loadMoreCmpAdded: false,
+
+        /**
+         * @private
+         * @cfg {String} loadingCls The CSS class that is added to the {@link #loadMoreCmp} while the Store is loading
+         */
+        loadingCls: Ext.baseCSSPrefix + 'loading',
+
+        /**
+         * @private
+         * @cfg {Ext.List} list Local reference to the List this plugin is bound to
+         */
+        list: null,
+
+        /**
+         * @private
+         * @cfg {Ext.scroll.Scroller} scroller Local reference to the List's Scroller
+         */
+        scroller: null,
+
+        /**
+         * @private
+         * @cfg {Boolean} loading True if the plugin has initiated a Store load that has not yet completed
+         */
+        loading: false
+    },
+
+    /**
+     * @private
+     * Sets up all of the references the plugin needs
+     */
+    init: function(list) {
+        var scroller = list.getScrollable().getScroller(),
+            store    = list.getStore();
+
+        this.setList(list);
+        this.setScroller(scroller);
+        this.bindStore(list.getStore());
+
+        this.addLoadMoreCmp();
+
+        // The List's Store could change at any time so make sure we are informed when that happens
+        list.updateStore = Ext.Function.createInterceptor(list.updateStore, this.bindStore, this);
+
+        if (this.getAutoPaging()) {
+            scroller.on({
+                scrollend: this.onScrollEnd,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     */
+    bindStore: function(newStore, oldStore) {
+        if (oldStore) {
+            oldStore.un({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+
+        if (newStore) {
+            newStore.on({
+                beforeload: this.onStoreBeforeLoad,
+                load: this.onStoreLoad,
+                filter: this.onFilter,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Removes the List/DataView's loading mask because we show our own in the plugin. The logic here disables the
+     * loading mask immediately if the store is autoloading. If it's not autoloading, allow the mask to show the first
+     * time the Store loads, then disable it and use the plugin's loading spinner.
+     * @param {Ext.data.Store} store The store that is bound to the DataView
+     */
+    disableDataViewMask: function() {
+        var list = this.getList();
+            this._listMask = list.getLoadingText();
+
+        list.setLoadingText(null);
+    },
+
+    enableDataViewMask: function() {
+        if(this._listMask) {
+            var list = this.getList();
+            list.setLoadingText(this._listMask);
+            delete this._listMask;
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyLoadTpl: function(config) {
+        return (Ext.isObject(config) && config.isTemplate) ? config : new Ext.XTemplate(config);
+    },
+
+    /**
+     * @private
+     */
+    applyLoadMoreCmp: function(config) {
+        config = Ext.merge(config, {
+            html: this.getLoadTpl().apply({
+                cssPrefix: Ext.baseCSSPrefix,
+                message: this.getLoadMoreText()
+            }),
+            scrollDock: 'bottom',
+            listeners: {
+                tap: {
+                    fn: this.loadNextPage,
+                    scope: this,
+                    element: 'element'
+                }
+            }
+        });
+
+        return Ext.factory(config, Ext.Component, this.getLoadMoreCmp());
+    },
+
+    /**
+     * @private
+     * If we're using autoPaging and detect that the user has scrolled to the bottom, kick off loading of the next page
+     */
+    onScrollEnd: function(scroller, x, y) {
+        var list = this.getList();
+
+        if (!this.getLoading() && y >= scroller.maxPosition.y) {
+            this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
+            list.setScrollToTopOnRefresh(false);
+
+            this.loadNextPage();
+        }
+    },
+
+    /**
+     * @private
+     * Makes sure we add/remove the loading CSS class while the Store is loading
+     */
+    updateLoading: function(isLoading) {
+        var loadMoreCmp = this.getLoadMoreCmp(),
+            loadMoreCls = this.getLoadingCls();
+
+        if (isLoading) {
+            loadMoreCmp.addCls(loadMoreCls);
+        } else {
+            loadMoreCmp.removeCls(loadMoreCls);
+        }
+    },
+
+    /**
+     * @private
+     * If the Store is just about to load but it's currently empty, we hide the load more button because this is
+     * usually an outcome of setting a new Store on the List so we don't want the load more button to flash while
+     * the new Store loads
+     */
+    onStoreBeforeLoad: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }
+    },
+
+    /**
+     * @private
+     */
+    onStoreLoad: function(store) {
+        var loadCmp  = this.getLoadMoreCmp(),
+            template = this.getLoadTpl(),
+            message  = this.storeFullyLoaded() ? this.getNoMoreRecordsText() : this.getLoadMoreText();
+
+        if (store.getCount()) {
+            loadCmp.show();
+        }
+        this.setLoading(false);
+
+        //if we've reached the end of the data set, switch to the noMoreRecordsText
+        loadCmp.setHtml(template.apply({
+            cssPrefix: Ext.baseCSSPrefix,
+            message: message
+        }));
+
+        if (this.currentScrollToTopOnRefresh !== undefined) {
+            this.getList().setScrollToTopOnRefresh(this.currentScrollToTopOnRefresh);
+            delete this.currentScrollToTopOnRefresh;
+        }
+
+        this.enableDataViewMask();
+    },
+
+    onFilter: function(store) {
+        if (store.getCount() === 0) {
+            this.getLoadMoreCmp().hide();
+        }else {
+            this.getLoadMoreCmp().show();
+        }
+    },
+
+    /**
+     * @private
+     * Because the attached List's inner list element is rendered after our init function is called,
+     * we need to dynamically add the loadMoreCmp later. This does this once and caches the result.
+     */
+    addLoadMoreCmp: function() {
+        var list = this.getList(),
+            cmp  = this.getLoadMoreCmp();
+
+        if (!this.getLoadMoreCmpAdded()) {
+            list.add(cmp);
+
+            /**
+             * @event loadmorecmpadded  Fired when the Load More component is added to the list. Fires on the List.
+             * @param {Ext.plugin.ListPaging} this The list paging plugin
+             * @param {Ext.List} list The list
+             */
+            list.fireEvent('loadmorecmpadded', this, list);
+            this.setLoadMoreCmpAdded(true);
+        }
+
+        return cmp;
+    },
+
+    /**
+     * @private
+     * Returns true if the Store is detected as being fully loaded, or the server did not return a total count, which
+     * means we're in 'infinite' mode
+     * @return {Boolean}
+     */
+    storeFullyLoaded: function() {
+        var store = this.getList().getStore(),
+            total = store.getTotalCount();
+
+        return total !== null ? store.getTotalCount() <= (store.currentPage * store.getPageSize()) : false;
+    },
+
+    /**
+     * @private
+     */
+    loadNextPage: function() {
+        var me = this;
+        if (!me.storeFullyLoaded()) {
+            me.disableDataViewMask();
+            me.setLoading(true);
+            me.getList().getStore().nextPage({ addRecords: true });
+        }
+    }
+});
+
+/**
+ * This plugin adds pull to refresh functionality to the List.
+ *
+ * ## Example
+ *
+ *     @example
+ *     var store = Ext.create('Ext.data.Store', {
+ *         fields: ['name', 'img', 'text'],
+ *         data: [
+ *             {
+ *                 name: 'rdougan',
+ *                 img: 'http://a0.twimg.com/profile_images/1261180556/171265_10150129602722922_727937921_7778997_8387690_o_reasonably_small.jpg',
+ *                 text: 'JavaScript development'
+ *             }
+ *         ]
+ *     });
+ *
+ *     Ext.create('Ext.dataview.List', {
+ *         fullscreen: true,
+ *
+ *         store: store,
+ *
+ *         plugins: [
+ *             {
+ *                 xclass: 'Ext.plugin.PullRefresh',
+ *                 pullText: 'Pull down for more new Tweets!'
+ *             }
+ *         ],
+ *
+ *         itemTpl: [
+ *             '<img src="{img}" alt="{name} photo" />',
+ *             '<div class="tweet"><b>{name}:</b> {text}</div>'
+ *         ]
+ *     });
+ */
+Ext.define('Ext.plugin.PullRefresh', {
+    extend:  Ext.Component ,
+    alias: 'plugin.pullrefresh',
+                                 
+
+    config: {
+        /**
+         * @cfg {Ext.dataview.List} list
+         * The list to which this PullRefresh plugin is connected.
+         * This will usually by set automatically when configuring the list with this plugin.
+         * @accessor
+         */
+        list: null,
+
+        /**
+         * @cfg {String} pullText The text that will be shown while you are pulling down.
+         * @accessor
+         */
+        pullText: 'Pull down to refresh...',
+
+        /**
+         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
+         * @accessor
+         */
+        releaseText: 'Release to refresh...',
+
+        /**
+         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
+         * @accessor
+         */
+        loadingText: 'Loading...',
+
+        /**
+         * @cfg {String} loadedText The text that will be when data has been loaded.
+         * @accessor
+         */
+        loadedText: 'Loaded.',
+
+        /**
+         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
+         * @accessor
+         */
+        lastUpdatedText: 'Last Updated:&nbsp;',
+
+        /**
+         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
+         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
+         * that will be loading and have unspecified heights.
+         */
+        scrollerAutoRefresh: false,
+
+        /**
+         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
+         * If false call {@link #snapBack}() to manually snap the pulldown back.
+         */
+        autoSnapBack: true,
+
+        /**
+         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
+         * @accessor
+         */
+        snappingAnimationDuration: 300,
+        /**
+         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
+         */
+        lastUpdatedDateFormat: 'm/d/Y h:iA',
+
+        /**
+         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
+         */
+        overpullSnapBackDuration: 300,
+
+        /**
+         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
+         * Will be passed a config object with properties state, message and updated
+         *
+         * @accessor
+         */
+        pullTpl: [
+            '<div class="x-list-pullrefresh-arrow"></div>',
+            '<div class="x-loading-spinner">',
+                '<span class="x-loading-top"></span>',
+                '<span class="x-loading-right"></span>',
+                '<span class="x-loading-bottom"></span>',
+                '<span class="x-loading-left"></span>',
+            '</div>',
+            '<div class="x-list-pullrefresh-wrap">',
+                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
+                '<div class="x-list-pullrefresh-updated">{updated}</div>',
+            '</div>'
+        ].join(''),
+
+        translatable: true
+    },
+
+    // @private
+    $state: "pull",
+    // @private
+    getState: function() {
+        return this.$state
+    },
+    // @private
+    setState: function(value) {
+        this.$state = value;
+        this.updateView();
+    },
+    // @private
+    $isSnappingBack: false,
+    // @private
+    getIsSnappingBack: function() {
+        return this.$isSnappingBack;
+    },
+    // @private
+    setIsSnappingBack: function(value) {
+        this.$isSnappingBack = value;
+    },
+
+    // @private
+    init: function(list) {
+        var me = this;
+
+        me.setList(list);
+        me.initScrollable();
+    },
+
+    getElementConfig: function() {
+        return {
+            reference: 'element',
+            classList: ['x-unsized'],
+            children: [
+                {
+                    reference: 'innerElement',
+                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
+                }
+            ]
+        };
+    },
+
+    // @private
+    initScrollable: function() {
+        var me = this,
+            list = me.getList(),
+            scrollable = list.getScrollable(),
+            scroller;
+
+        if (!scrollable) {
+            return;
+        }
+
+        scroller = scrollable.getScroller();
+        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
+
+        me.lastUpdated = new Date();
+
+        list.insert(0, me);
+
+        scroller.on({
+            scroll: me.onScrollChange,
+            scope: me
+        });
+
+        this.updateView();
+    },
+
+    // @private
+    applyPullTpl: function(config) {
+        if (config instanceof Ext.XTemplate) {
+            return config
+        } else {
+            return new Ext.XTemplate(config);
+        }
+    },
+
+    // @private
+    updateList: function(newList, oldList) {
+        var me = this;
+
+        if (newList && newList != oldList) {
+            newList.on({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        } else if (oldList) {
+            oldList.un({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        }
+    },
+
+    // @private
+    getPullHeight: function() {
+       return this.innerElement.getHeight();
+    },
+
+    /**
+     * @private
+     * Attempts to load the newest posts via the attached List's Store's Proxy
+     */
+    fetchLatest: function() {
+        var store = this.getList().getStore(),
+            proxy = store.getProxy(),
+            operation;
+
+        operation = Ext.create('Ext.data.Operation', {
+            page: 1,
+            start: 0,
+            model: store.getModel(),
+            limit: store.getPageSize(),
+            action: 'read',
+            sorters: store.getSorters(),
+            filters: store.getRemoteFilter() ? store.getFilters() : []
+        });
+
+        proxy.read(operation, this.onLatestFetched, this);
+    },
+
+    /**
+     * @private
+     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
+     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
+     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
+     * timeline between the new and the old records.
+     */
+    onLatestFetched: function(operation) {
+        var store = this.getList().getStore(),
+            oldRecords = store.getData(),
+            newRecords = operation.getRecords(),
+            length = newRecords.length,
+            toInsert = [],
+            newRecord, oldRecord, i;
+
+        for (i = 0; i < length; i++) {
+            newRecord = newRecords[i];
+            oldRecord = oldRecords.getByKey(newRecord.getId());
+
+            if (oldRecord) {
+                oldRecord.set(newRecord.getData());
+            } else {
+                toInsert.push(newRecord);
+            }
+
+            oldRecord = undefined;
+        }
+
+        store.insert(0, toInsert);
+        this.setState("loaded");
+        this.fireEvent('latestfetched', this, toInsert);
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * Snaps the List back to the top after a pullrefresh is complete
+     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
+     */
+    snapBack: function(force) {
+        if(this.getState() !== "loaded" && force !== true) return;
+
+        var list = this.getList(),
+            scroller = list.getScrollable().getScroller();
+
+        scroller.refresh();
+        scroller.minPosition.y = 0;
+
+        scroller.on({
+            scrollend: this.onSnapBackEnd,
+            single: true,
+            scope: this
+        });
+
+        this.setIsSnappingBack(true);
+        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
+    },
+
+    /**
+     * @private
+     * Called when PullRefresh has been snapped back to the top
+     */
+    onSnapBackEnd: function() {
+        this.setState("pull");
+        this.setIsSnappingBack(false);
+    },
+
+    /**
+     * @private
+     * Called when the Scroller updates from the list
+     * @param scroller
+     * @param x
+     * @param y
+     */
+    onScrollChange: function(scroller, x, y) {
+        if (y <= 0) {
+            var pullHeight = this.getPullHeight(),
+                isSnappingBack = this.getIsSnappingBack();
+
+            if(this.getState() === "loaded" && !isSnappingBack) {
+                this.snapBack();
+            }
+
+            if (this.getState() !== "loading" && this.getState() !=="loaded") {
+                if (-y >= pullHeight + 10) {
+                    this.setState("release");
+                    scroller.getContainer().onBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
+                    this.setState("pull");
+                    scroller.getContainer().unBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                }
+            }
+            this.getTranslatable().translate(0, -y);
+        }
+    },
+
+    /**
+     * @private
+     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
+     */
+    onScrollerDragEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            scroller.minPosition.y = -this.getPullHeight();
+            scroller.on({
+                scrollend: 'fetchLatest',
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Updates the content based on the PullRefresh Template
+     */
+    updateView: function() {
+        var state = this.getState(),
+            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
+            templateConfig = {state: state, updated: lastUpdatedText},
+            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
+            fn = "get" + stateFn + "Text";
+
+        if (this[fn] && Ext.isFunction(this[fn])) {
+            templateConfig.message = this[fn].call(this);
+        }
+
+        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
+        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
+        this.getPullTpl().overwrite(this.innerElement, templateConfig);
+    }
+}, function() {
+
+    /**
+     * Updates the PullRefreshText.
+     * @method setPullRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
+
+    /**
+     * Updates the ReleaseRefreshText.
+     * @method setReleaseRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} pullReleaseText
+                 * Optional Text during the Release State.
+                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
+                 */
+                if (config.hasOwnProperty('pullReleaseText')) {
+                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
+                    config.releaseText = config.pullReleaseText;
+                    delete config.pullReleaseText;
+                }
+
+                /**
+                 * @cfg {String} pullRefreshText
+                 * Optional Text during the Pull State.
+                 * @deprecated 2.3.0 Please use {@link #pullText} instead
+                 */
+                if (config.hasOwnProperty('pullRefreshText')) {
+                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
+                    config.pullText = config.pullRefreshText;
+                    delete config.pullRefreshText;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+});
+
+/**
  * Used in the {@link Ext.tab.Bar} component. This shouldn't be used directly, instead use
  * {@link Ext.tab.Bar} or {@link Ext.tab.Panel}.
  * @private
@@ -74629,12 +75696,508 @@ Ext.define('Ext.viewport.Viewport', {
  * you should **not** use {@link Ext#onReady}.
  */
 
+Ext.define('MedBlogs.CustomPullRefresh', {
+    extend:  Ext.Component ,
+    alias: 'plugin.custompullrefresh',
+                                 
+
+    config: {
+
+        onRefresh: null,
+        loadNextPage: null,
+        /**
+         * @cfg {Ext.dataview.List} list
+         * The list to which this PullRefresh plugin is connected.
+         * This will usually by set automatically when configuring the list with this plugin.
+         * @accessor
+         */
+        list: null,
+
+        /**
+         * @cfg {String} pullText The text that will be shown while you are pulling down.
+         * @accessor
+         */
+        pullText: 'Pull down to refresh...',
+
+        /**
+         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
+         * @accessor
+         */
+        releaseText: 'Release to refresh...',
+
+        /**
+         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
+         * @accessor
+         */
+        loadingText: 'Loading...',
+
+        /**
+         * @cfg {String} loadedText The text that will be when data has been loaded.
+         * @accessor
+         */
+        loadedText: 'Loaded.',
+
+        /**
+         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
+         * @accessor
+         */
+        lastUpdatedText: 'Last Updated:&nbsp;',
+
+        /**
+         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
+         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
+         * that will be loading and have unspecified heights.
+         */
+        scrollerAutoRefresh: false,
+
+        /**
+         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
+         * If false call {@link #snapBack}() to manually snap the pulldown back.
+         */
+        autoSnapBack: true,
+
+        /**
+         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
+         * @accessor
+         */
+        snappingAnimationDuration: 300,
+        /**
+         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
+         */
+        lastUpdatedDateFormat: 'm/d/Y h:iA',
+
+        /**
+         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
+         */
+        overpullSnapBackDuration: 300,
+
+        /**
+         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
+         * Will be passed a config object with properties state, message and updated
+         *
+         * @accessor
+         */
+        pullTpl: [
+            '<div class="x-list-pullrefresh-arrow"></div>',
+            '<div class="x-loading-spinner">',
+                '<span class="x-loading-top"></span>',
+                '<span class="x-loading-right"></span>',
+                '<span class="x-loading-bottom"></span>',
+                '<span class="x-loading-left"></span>',
+            '</div>',
+            '<div class="x-list-pullrefresh-wrap">',
+                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
+                '<div class="x-list-pullrefresh-updated">{updated}</div>',
+            '</div>'
+        ].join(''),
+
+        translatable: true
+    },
+
+    // @private
+    $state: "pull",
+    // @private
+    getState: function() {
+        return this.$state
+    },
+    // @private
+    setState: function(value) {
+        this.$state = value;
+        this.updateView();
+    },
+    // @private
+    $isSnappingBack: false,
+    // @private
+    getIsSnappingBack: function() {
+        return this.$isSnappingBack;
+    },
+    // @private
+    setIsSnappingBack: function(value) {
+        this.$isSnappingBack = value;
+    },
+
+    // @private
+    $pageNumber: 1,
+    // @private
+    getPageNumber: function() {
+        return this.$pageNumber
+    },
+    // @private
+    setPageNumber: function(value) {
+        this.$pageNumber = value;
+        //this.updateView();
+    },
+    incrementPageNumber: function() {
+        this.$pageNumber++;
+        //this.updateView();
+    },
+
+    // @private
+    init: function(list) {
+        var me = this;
+
+        me.setList(list);
+        me.initScrollable();
+    },
+
+    getElementConfig: function() {
+        return {
+            reference: 'element',
+            classList: ['x-unsized'],
+            children: [
+                {
+                    reference: 'innerElement',
+                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
+                }
+            ]
+        };
+    },
+
+    // @private
+    initScrollable: function() {
+        var me = this,
+            list = me.getList(),
+            scrollable = list.getScrollable(),
+            scroller;
+
+        if (!scrollable) {
+            return;
+        }
+
+        scroller = scrollable.getScroller();
+        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
+
+        me.lastUpdated = new Date();
+
+        list.insert(0, me);
+
+        scroller.on({
+            scroll: me.onScrollChange,
+            scope: me
+        });
+
+        this.updateView();
+    },
+
+    // @private
+    applyPullTpl: function(config) {
+        if (config instanceof Ext.XTemplate) {
+            return config
+        } else {
+            return new Ext.XTemplate(config);
+        }
+    },
+
+    // @private
+    updateList: function(newList, oldList) {
+        var me = this;
+
+        if (newList && newList != oldList) {
+            newList.on({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        } else if (oldList) {
+            oldList.un({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        }
+    },
+
+    // @private
+    getPullHeight: function() {
+       return this.innerElement.getHeight();
+    },
+
+    /**
+     * @private
+     * Attempts to load the newest posts via the attached List's Store's Proxy
+     */
+    fetchLatest: function() {
+        console.log("fetch latest called");
+        var store = this.getList().getStore(),
+            proxy = store.getProxy(),
+            operation;
+
+        operation = Ext.create('Ext.data.Operation', {
+            page: 1,
+            start: 0,
+            model: store.getModel(),
+            limit: store.getPageSize(),
+            action: 'read',
+            sorters: store.getSorters(),
+            filters: store.getRemoteFilter() ? store.getFilters() : []
+        });
+
+        proxy.read(operation, this.onLatestFetched, this);
+    },
+
+    /**
+     * @private
+     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
+     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
+     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
+     * timeline between the new and the old records.
+     */
+    onLatestFetched: function(operation) {
+        console.log("fetch latest finished callback");
+        var store = this.getList().getStore(),
+            oldRecords = store.getData(),
+            newRecords = operation.getRecords(),
+            length = newRecords.length,
+            toInsert = [],
+            newRecord, oldRecord, i;
+
+        for (i = 0; i < length; i++) {
+            newRecord = newRecords[i];
+            oldRecord = oldRecords.getByKey(newRecord.getId());
+
+            if (oldRecord) {
+                oldRecord.set(newRecord.getData());
+            } else {
+                toInsert.push(newRecord);
+            }
+
+            oldRecord = undefined;
+        }
+
+        store.insert(0, toInsert);
+        this.setState("loaded");
+        this.fireEvent('latestfetched', this, toInsert);
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    onRefreshFinished: function() {
+        console.log("refresh finished callback");
+        this.setState("loaded");
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * Snaps the List back to the top after a pullrefresh is complete
+     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
+     */
+    snapBack: function(force) {
+        if(this.getState() !== "loaded" && force !== true) return;
+
+        var list = this.getList(),
+            scroller = list.getScrollable().getScroller();
+
+        scroller.refresh();
+        scroller.minPosition.y = 0;
+
+        scroller.on({
+            scrollend: this.onSnapBackEnd,
+            single: true,
+            scope: this
+        });
+
+        this.setIsSnappingBack(true);
+        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
+    },
+
+    /**
+     * @private
+     * Called when PullRefresh has been snapped back to the top
+     */
+    onSnapBackEnd: function() {
+        this.setState("pull");
+        this.setIsSnappingBack(false);
+    },
+
+    /**
+     * @private
+     * Called when the Scroller updates from the list
+     * @param scroller
+     * @param x
+     * @param y
+     */
+    onScrollChange: function(scroller, x, y) {
+        var pullHeight = this.getPullHeight();
+        if (y <= 0) {
+            var isSnappingBack = this.getIsSnappingBack();
+
+            if(this.getState() === "loaded" && !isSnappingBack) {
+                this.snapBack();
+            }
+
+            if (this.getState() !== "loading" && this.getState() !=="loaded") {
+                if (-y >= pullHeight + 10) {
+                    this.setState("release");
+                    scroller.getContainer().onBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
+                    this.setState("pull");
+                    scroller.getContainer().unBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                }
+            }
+            this.getTranslatable().translate(0, -y);
+        } else {
+
+             if (y >= (scroller.maxPosition.y -10) && this.getState() !== "loading") {
+                console.log("should load more");
+                this.setState("release");
+                scroller.getContainer().onBefore({
+                    dragend: 'onScrollerBottomEnd',
+                    single: true,
+                    scope: this
+                });    
+            }
+        }
+    },
+
+    pageLoaded: function(){
+        console.log("page finished callback");
+        this.setState("loaded");
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * @private
+     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
+     */
+    onScrollerDragEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            scroller.minPosition.y = -this.getPullHeight();
+            scroller.on({
+                scrollend: function(){
+                    console.log("scroll end");
+                    console.log(scroller.maxPosition.y);
+                    if (this.getOnRefresh()) {
+                        console.log("refresh to do");
+                        this.getOnRefresh().call( this.onRefreshFinished(), this);
+                    } else {
+                        console.log("fetch latest to do");
+                        this.getFetchLatest();
+                    }
+                },
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    onScrollerBottomEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            //scroller.maxPosition.y = scroller.maxPosition.y + this.getPullHeight();
+            scroller.on({
+                scrollend: function(){
+                    console.log("scroll end load more");
+                    //this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
+                    //this.getList().setScrollToTopOnRefresh(false);
+                    this.incrementPageNumber()
+                    console.log(this.getPageNumber());
+                    this.getLoadNextPage(this.pageLoaded(), this);
+                },
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Updates the content based on the PullRefresh Template
+     */
+    updateView: function() {
+        var state = this.getState(),
+            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
+            templateConfig = {state: state, updated: lastUpdatedText},
+            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
+            fn = "get" + stateFn + "Text";
+
+        if (this[fn] && Ext.isFunction(this[fn])) {
+            templateConfig.message = this[fn].call(this);
+        }
+
+        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
+        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
+        this.getPullTpl().overwrite(this.innerElement, templateConfig);
+    }
+}, function() {
+
+    /**
+     * Updates the PullRefreshText.
+     * @method setPullRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
+
+    /**
+     * Updates the ReleaseRefreshText.
+     * @method setReleaseRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} pullReleaseText
+                 * Optional Text during the Release State.
+                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
+                 */
+                if (config.hasOwnProperty('pullReleaseText')) {
+                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
+                    config.releaseText = config.pullReleaseText;
+                    delete config.pullReleaseText;
+                }
+
+                /**
+                 * @cfg {String} pullRefreshText
+                 * Optional Text during the Pull State.
+                 * @deprecated 2.3.0 Please use {@link #pullText} instead
+                 */
+                if (config.hasOwnProperty('pullRefreshText')) {
+                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
+                    config.pullText = config.pullRefreshText;
+                    delete config.pullRefreshText;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+});
+
 Ext.define('MedBlogs.model.Announcements',{
 
 	extend:  Ext.data.Model ,
 	config: {
 		fields: 
 		[
+			'uid',
 		    'title',
 			'link',
 			{name: 'pubDate', type: 'int'},
@@ -74712,7 +76275,11 @@ Ext.define('MedBlogs.model.FlashCards', {
     }
 });
 
+<<<<<<< Updated upstream
 Ext.define('MedBlogs.util.Proxy.Announcements', {
+=======
+Ext.define('MedBlogs.util.Proxy.CardCategories', {
+>>>>>>> Stashed changes
     singleton: true,
                
                                        
@@ -74785,6 +76352,7 @@ Ext.define('MedBlogs.store.Announcements', {
     }
 });
 
+<<<<<<< Updated upstream
 /*Ext.define('MedBlogs.store.Announcements',{
     extend: 'Ext.data.Store',
 
@@ -74796,12 +76364,81 @@ Ext.define('MedBlogs.store.Announcements', {
         model: 'MedBlogs.model.Announcements',
         autoLoad: true,
         pageSize: 10,
+=======
+/*Ext.define('MedBlogs.util.Proxy.Announcements', {
+    singleton: true,
+    requires: [
+        'MedBlogs.model.Announcements',
+        'Ext.data.JsonP'
+    ],
+
+    process: function(url) {
+        var announcementStore = Ext.getStore('Announcements'),
+            announcementIds = [],
+            announcementModel;
+
+        Ext.data.JsonP.request({
+            url: url,
+            //callbackKey: 'feedscb',
+            //callbackName: 'feedscb',    
+            
+            callback: function(successful, data){
+                if(successful === true) {
+                    console.log(data.items.toString());
+                    Ext.Array.each(data.items, function(item) {
+                            // don't add duplicates and make the dates into date format
+                            //if (announcementIds.indexOf(item.get('uid')) == -1) {
+                                //announcementIds.push(item);
+                            //if(announcementStore.getCount() < announcementStore.getPageSize()) {
+                                announcementModel = Ext.create('MedBlogs.model.Announcements', item);
+                                var tempDate = new Date(item.pubDate);
+                                var month = tempDate.getMonth() + 1;
+                                if(month<10) month = '0' + month;
+                                var day = tempDate.getDate();
+                                if(day<10) day = '0' + day;
+                                var toDisplay = day + '/' + month + '/' + tempDate.getFullYear();
+                                announcementModel.set('date', toDisplay);
+                                announcementStore.add(announcementModel);
+                            //}
+                            //}
+                    });
+                    announcementStore.sync();
+                } else {
+                    Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
+                }
+            }
+        });
+    }
+});
+*/
+Ext.define('MedBlogs.store.Announcements', {
+    extend:  Ext.data.Store ,
+
+                
+                                      
+                                             
+      
+
+    config: {
+        model: 'MedBlogs.model.Announcements',
+        pageSize: 10,
+        //autoLoad:true,
+        //remoteFilter: true,
+        //remoteSort: true,
+        sorters:[{
+            property:'pubDate',
+            direction:'DESC'
+        }],
+>>>>>>> Stashed changes
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
             startParam:'offset',
             limitParam:'limit',
+<<<<<<< Updated upstream
             page:'page',
+=======
+>>>>>>> Stashed changes
             reader: {
                 type: 'json',
                 rootProperty: 'items'
@@ -74809,7 +76446,10 @@ Ext.define('MedBlogs.store.Announcements', {
         }
     }
 });
+<<<<<<< Updated upstream
 */
+=======
+>>>>>>> Stashed changes
 
 Ext.define('MedBlogs.view.feeds.Feeds', {
 	extend:  Ext.Panel ,
@@ -74832,6 +76472,7 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
+<<<<<<< Updated upstream
 				store: 'Announcements',
 				plugins: [
 					{
@@ -74842,6 +76483,78 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
                         xclass: 'Ext.plugin.PullRefresh',           
                         pullText: 'Pull to refresh announcements!'
                     }                        
+=======
+				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
+				plugins: [
+					{
+                        xclass: 'Ext.plugin.ListPaging',
+                        autoPaging: true
+                    },
+                    {
+                        xclass: 'Ext.plugin.PullRefresh',
+                        pullText: 'Pull down for more data!'
+                    }
+
+					/*{
+                        xclass: 'MedBlogs.CustomPullRefresh',           
+                        pullText: 'Pull to refresh announcements!',
+                        onRefresh: function(callback, plugin) {
+                        	/*
+                        	var items = Ext.getStore('Settings').getData().items;
+                        	Ext.each(items ,function(record, recordIndex){
+                        		if(record.get('following') === yes) {
+                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
+                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
+                        		}
+                        	});
+                        	/
+                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+                        	//callback.call(plugin);
+                        	//plugin.setState("loaded");
+                        	//var store = plugin.list.getStore();
+                        	//store.load();
+		                    /*var store = plugin.list.getStore();
+		                            store.load(function(records, operation, success) {
+		                                callback.call(plugin);
+		                                console.log( 'me3' );
+		                            });
+		                    /
+		                },
+		                loadNextPage: function(callback, plugin) {
+                        	/*
+                        	var items = Ext.getStore('Settings').getData().items;
+                        	Ext.each(items ,function(record, recordIndex){
+                        		if(record.get('following') === yes) {
+                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
+                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
+                        		}
+                        	});
+                        	/
+                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
+                        	//callback.call(plugin);
+                        	//plugin.setState("loaded");
+                        	//var store = plugin.list.getStore();
+                        	//store.load();
+		                    /*var store = plugin.list.getStore();
+		                            store.load(function(records, operation, success) {
+		                                callback.call(plugin);
+		                                console.log( 'me3' );
+		                            });
+		                    /
+		                }
+                    }, 
+                    {
+						xclass:'Ext.plugin.ListPaging', //'MedBlogs.CustomListPaging',
+						autoPaging: true,
+						noMoreRecordsText: 'No More Records',
+						//loadMoreCmpAdded: true,
+						clearOnPageLoad: false,
+						storeFullyLoaded: function() {
+					         var store = this.getList().getStore();
+					         return (store.getSize() < (store.currentPage * store.getPageSize()));
+					    }
+					}  */                     
+>>>>>>> Stashed changes
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -74850,11 +76563,19 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 							'<span class="creator">{creator}</span>',
 							'<span class="date">{date}</span>',
 							'<br/><span class="description">{description}</span></div>'].join(" ")
-		
-
 			}
 		]
 	}
+	/*,
+
+	show: function(component, options){
+	    var store = Ext.getStore('Announcements');
+
+	    MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+
+	    store.load();
+	    console.log("show feed screen");
+	} */
 	
 });
 
@@ -75449,13 +77170,14 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
-		
-        this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "feedsScreen") {
-
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
         } else {
+            this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
             this.hideButton(this.getSettingsButton());
             this.showButton(this.getDoneButton());
         }
@@ -75464,8 +77186,11 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     onMainPop: function(view, item) {
     	// deselect any tapped announcements
 		this.getFeedList().deselectAll();
-        if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
+        if (item.xtype == "settingsScreen") {
             this.showButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());
@@ -75668,8 +77393,13 @@ Ext.application({
 
                
                                  
+<<<<<<< Updated upstream
                           
                                  
+=======
+                                    
+                                      
+>>>>>>> Stashed changes
       
 
     controllers: [
@@ -75730,8 +77460,16 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
+<<<<<<< Updated upstream
         Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
         MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+=======
+        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+
+        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
+        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+>>>>>>> Stashed changes
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
@@ -75759,6 +77497,31 @@ Ext.application({
                 }
             }
         );
+    },
+
+    doInsertToken:function(jsonRequestObject) {
+
+        Ext.Ajax.request({
+            url: 'getRequest.json',
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000,
+            params: Ext.Object.toQueryString(jsonRequestObject),
+
+            success: function(response, opts) {
+                if (response && response.responseText) {
+                    var jsonObject = Ext.JSON.decode(response.responseText);
+                    // handle search result
+                } else {
+                    // handle error response
+                }
+            }, failure: function(response, opts) {
+                // handle error response
+            }
+        });
     },
     
     subscriptionsInit: function (subscriptions) {
@@ -75855,5 +77618,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require /Users/tobyp/Desktop/Project Repositories /SoC-E-Health-App/Sencha/app.js
+// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
 

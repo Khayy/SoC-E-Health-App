@@ -4,6 +4,7 @@ Ext.define('MedBlogs.model.Announcements',{
 	config: {
 		fields: 
 		[
+			'uid',
 		    'title',
 			'link',
 			{name: 'pubDate', type: 'int'},
