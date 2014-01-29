@@ -88,13 +88,15 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
         	record.set('following', 'yes');
-	        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
+        	record.set('notifications', 'yes');
+        	record.save();
+	        /*Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
 		        if (choice === 'yes' || choice === 'ok') {
 			        record.set('notifications', 'yes');
 		        }
 		        
 		        record.save();
-	        });
+	        });*/
         } else {
 	        record.set('following', 'no');
 	        record.set('notifications', 'no');

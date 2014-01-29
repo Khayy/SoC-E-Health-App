@@ -8,62 +8,62 @@ Ext.define('MedBlogs.store.CardCategories', {
 			{
 				id : '1', 
 				image: 'resources/images/placeholder.png',
-				category: 'Ageing and childhood development'
+				category: 'Ageing &amp; childhood<br />development'
 			},
 			{
 				id : '2', 
 				image: 'resources/images/placeholder.png',
-				category: 'Cardiovascular'
+				category: 'Cardiovascular<br /> &nbsp;'
 			},
 			{
 				id : '3', 
 				image: 'resources/images/placeholder.png',
-				category: 'Dermatology'
+				category: 'Dermatology<br /> &nbsp;'
 			},
 			{
 				id : '4', 
 				image: 'resources/images/placeholder.png',
-				category: 'Endocrine'
+				category: 'Endocrine<br /> &nbsp;'
 			},
 			{
 				id : '5', 
 				image: 'resources/images/placeholder.png',
-				category: 'ENT'
+				category: 'ENT<br /> &nbsp;'
 			},
 			{
 				id : '6', 
 				image: 'resources/images/placeholder.png',
-				category: 'Haematology'
+				category: 'Haematology<br /> &nbsp;'
 			},
 			{
 				id : '7', 
 				image: 'resources/images/placeholder.png',
-				category: 'Musculoskeletal'
+				category: 'Musculoskeletal<br /> &nbsp;'
 			},
 			{
 				id : '8', 
 				image: 'resources/images/placeholder.png',
-				category: 'Neurology'
+				category: 'Neurology<br /> &nbsp;'
 			},
 			{
 				id : '9', 
 				image: 'resources/images/placeholder.png',
-				category: 'Opthalmology'
+				category: 'Opthalmology<br /> &nbsp;'
 			},
 			{
 				id : '10', 
 				image: 'resources/images/placeholder.png',
-				category: 'Psychiatry'
+				category: 'Psychiatry<br /> &nbsp;'
 			},
 			{
 				id : '11', 
 				image: 'resources/images/placeholder.png',
-				category: 'Renal'
+				category: 'Renal<br /> &nbsp;'
 			},
 			{
 				id : '12', 
 				image: 'resources/images/placeholder.png',
-				category: 'Resipiratory'
+				category: 'Resipiratory<br /> &nbsp;'
 			}
 		]
 	}
