@@ -43,7 +43,9 @@ Ext.application({
     
     views: [
         'Main',
-		'FlashCards',
+		'FlashCardsNavigation',
+		'flashcards.Card',
+		'flashcards.SelectScreen',
 		'PinnedPostsNavigation',
 		'pinned.PinnedPosts',
 		'pinned.PostDetail',

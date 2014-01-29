@@ -4,8 +4,8 @@ Ext.define('MedBlogs.model.CardCategories', {
     config: {
         fields: [
             'id',
-            'first_name',
-            'last_name',
+            'image',
+            'category',
             'sessionIds',
             'bio',
             'position',

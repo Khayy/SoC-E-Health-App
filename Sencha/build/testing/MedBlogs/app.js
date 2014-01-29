@@ -75038,9 +75038,9 @@ Ext.define('MedBlogs.view.FeedsNavigation', {
     }
 });
 
-Ext.define('MedBlogs.view.FlashCards', {
+Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 	extend:  Ext.Panel ,
-	xtype: 'flashCardScreen',
+	xtype: 'flashcardSelectScreen',
 	
 	           
 		               
@@ -75053,19 +75053,15 @@ Ext.define('MedBlogs.view.FlashCards', {
 		title: 'Flash Cards',
 		iconCls: 'tagIcon',
 		layout: 'card',
-
 		items: [
 			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Flash Cards'
-			},
-			{
 	            xtype: 'dataview',
+	            id: 'categoryDataview',
 	            scrollable: true,
 	            inline: true,
 	            mode: 'MULTI',
 	            cls: 'dataview-inline',
+	            selectedCls: 'card-cat-selected',
 	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
 	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
 	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
@@ -75074,6 +75070,60 @@ Ext.define('MedBlogs.view.FlashCards', {
 		]
 	}
 	
+});
+
+Ext.define('MedBlogs.view.flashcards.Card', {
+    extend:  Ext.Container ,
+
+    requires: [
+    ],
+
+    config: {
+        title: 'Flash Cards',
+        layout: 'vbox',
+
+		items: [
+            {
+                id: 'question',
+                tpl: '<div class="flash_card_question">{question}</div>'
+            },
+            {
+                id: 'answer',
+                tpl: '<div class="flash_card_answer">{answer}</div>'
+            }
+        ],
+
+        record: null
+    },
+
+    updateRecord: function(newRecord) {
+        if (newRecord) {
+            this.down('#question').setData(newRecord.data);
+            this.down('#answer').setData(newRecord.data);
+        }
+    }
+});
+
+Ext.define('MedBlogs.view.FlashCardsNavigation', {
+    extend:  Ext.navigation.View ,
+    xtype: 'flashcardsNavigation',
+
+               
+                                                
+                                       
+      
+
+    config: {
+		title: 'Flash Cards',
+		iconCls: 'tagIcon',
+		layout: 'card',
+		
+        autoDestroy: false,
+        
+        items: [
+            { xtype: 'flashcardSelectScreen' }
+        ]
+    }
 });
 
 Ext.define('MedBlogs.store.PinnedPosts',{
@@ -75300,7 +75350,9 @@ Ext.define('MedBlogs.view.Main', {
     	                               
     	                            
                                          
-    	                           
+    	                                     
+    	                                
+    	                                        
     	                                      
                              
                                 
@@ -75323,7 +75375,7 @@ Ext.define('MedBlogs.view.Main', {
 	            xtype: 'pinnedNavigation'
             },
             {
-            	xtype: 'flashCardScreen'
+            	xtype: 'flashcardsNavigation'
             },
             {
                 xtype: 'helpScreen'
@@ -75526,21 +75578,28 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
 
     config: {
         refs: {
-            flashCardScreen: 'flashCardScreen'
+            navigationContainer: 'flashcardsNavigation',
+            selectScreen: 'flashcardsNavigation flashcardSelectScreen',
+            selectGrid: '#categoryDataview'
         },
 
         control: {
-            'flashCardScreen dataview': {
-                itemtap: 'onCategoryTap'
-            }
-
+        	selectGrid: {
+           		 itemtap: 'onCategoryTap'
+		    }
         }
     },
 
     onCategoryTap: function(list, index, node, record) {
+    	if (typeof(this.selectedCategories) === 'undefined') {
+	    	this.selectedCategories = [];
+    	}
         // check and only show on select 
-        if(list.isSelected(record) === false)
-            Ext.Msg.confirm(record.get('first_name'), "Would you like to select " + record.get('first_name') + "?", Ext.emptyFn);
+        if(list.isSelected(record) === false) {
+        	this.selectedCategories.push(record);
+        } else {
+	        Ext.Array.remove(this.selectedCategories, record);
+        }
     }
 });
 
@@ -75611,7 +75670,9 @@ Ext.application({
     
     views: [
         'Main',
-		'FlashCards',
+		'FlashCardsNavigation',
+		'flashcards.Card',
+		'flashcards.SelectScreen',
 		'PinnedPostsNavigation',
 		'pinned.PinnedPosts',
 		'pinned.PostDetail',

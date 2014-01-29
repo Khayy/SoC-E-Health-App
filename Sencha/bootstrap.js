@@ -673,13 +673,15 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.util.Proxy.Announcements": [],
   "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [],
-  "MedBlogs.view.FlashCards": [],
+  "MedBlogs.view.FlashCardsNavigation": [],
   "MedBlogs.view.Help": [],
   "MedBlogs.view.Main": [],
   "MedBlogs.view.PinnedPostsNavigation": [],
   "MedBlogs.view.feeds.FeedDetail": [],
   "MedBlogs.view.feeds.Feeds": [],
   "MedBlogs.view.feeds.Settings": [],
+  "MedBlogs.view.flashcards.Card": [],
+  "MedBlogs.view.flashcards.SelectScreen": [],
   "MedBlogs.view.pinned.PinnedPosts": [],
   "MedBlogs.view.pinned.PostDetail": []
 });
@@ -1440,8 +1442,8 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.view.FeedsNavigation": [
     "widget.feedsNavigation"
   ],
-  "MedBlogs.view.FlashCards": [
-    "widget.flashCardScreen"
+  "MedBlogs.view.FlashCardsNavigation": [
+    "widget.flashcardsNavigation"
   ],
   "MedBlogs.view.Help": [
     "widget.helpScreen"
@@ -1460,6 +1462,10 @@ Ext.ClassManager.addNameAliasMappings({
   ],
   "MedBlogs.view.feeds.Settings": [
     "widget.settingsScreen"
+  ],
+  "MedBlogs.view.flashcards.Card": [],
+  "MedBlogs.view.flashcards.SelectScreen": [
+    "widget.flashcardSelectScreen"
   ],
   "MedBlogs.view.pinned.PinnedPosts": [
     "widget.pinnedPostsScreen"
