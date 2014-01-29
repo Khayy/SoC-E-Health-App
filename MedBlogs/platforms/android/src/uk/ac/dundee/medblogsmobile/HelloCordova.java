@@ -17,7 +17,7 @@
        under the License.
  */
 
-package com.soc_e_health_app.medblogs;
+package uk.ac.dundee.medblogsmobile;
 
 import android.os.Bundle;
 import org.apache.cordova.*;
@@ -29,8 +29,8 @@ public class HelloCordova extends DroidGap
     {
         super.onCreate(savedInstanceState);
         // Set by <content src="index.html" /> in config.xml
-        super.loadUrl(Config.getStartUrl());
-        //super.loadUrl("file:///android_asset/www/index.html")
+        //super.loadUrl(Config.getStartUrl());
+        super.loadUrl("file:///android_asset/www/index.html");
     }
 }
 
