@@ -22,9 +22,7 @@ Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 	            mode: 'MULTI',
 	            cls: 'dataview-inline',
 	            selectedCls: 'card-cat-selected',
-	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
-	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
-	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            itemTpl: '<div class="card_container"><div class="img" style="background-image: url({image});"></div><div class="category_title">{category}</div></div>',
 	            store: 'CardCategories'
         	}
 		]

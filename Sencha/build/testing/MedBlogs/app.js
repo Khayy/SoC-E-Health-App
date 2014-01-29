@@ -74693,15 +74693,8 @@ Ext.define('MedBlogs.model.CardCategories', {
     config: {
         fields: [
             'id',
-            'first_name',
-            'last_name',
-            'sessionIds',
-            'bio',
-            'position',
-            'photo',
-            'affiliation',
-            'url',
-            'twitter'
+            'image',
+            'category'
         ]
     }
 });
@@ -74716,44 +74709,6 @@ Ext.define('MedBlogs.model.FlashCards', {
             'question',
             'answer'
         ]
-    }
-});
-
-Ext.define('MedBlogs.util.Proxy.CardCategories', {
-    singleton: true,
-                                 
-
-    process: function(url) {
-        var speakerStore = Ext.getStore('CardCategories'),
-            speakerIds = [],
-            speakerModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            callbackName: 'feedCb',
-
-            success: function(data) {
-                Ext.Array.each(data.proposals, function(proposal) {
-                    Ext.Array.each(proposal.speakers, function(speaker) {
-                        // don't add duplicates or items with no photos.
-                        if (speakerIds.indexOf(speaker.id) == -1 && speaker.photo && speakerIds.length < 25) {
-                            speakerIds.push(speaker.id);
-
-                            speakerModel = Ext.create('MedBlogs.model.CardCategories', speaker);
-                            speakerStore.add(speakerModel);
-                        }
-                    });
-                });
-            }
-        });
-    }
-});
-
-Ext.define('MedBlogs.store.CardCategories', {
-    extend:  Ext.data.Store ,
-
-    config: {
-        model: 'MedBlogs.model.CardCategories'
     }
 });
 
@@ -75038,6 +74993,77 @@ Ext.define('MedBlogs.view.FeedsNavigation', {
     }
 });
 
+Ext.define('MedBlogs.store.CardCategories', {
+    extend:  Ext.data.Store ,
+
+   	config: {
+		model: 'MedBlogs.model.CardCategories',
+		data: 
+		[
+			{
+				id : '1', 
+				image: 'resources/images/placeholder.png',
+				category: 'Ageing and childhood development'
+			},
+			{
+				id : '2', 
+				image: 'resources/images/placeholder.png',
+				category: 'Cardiovascular'
+			},
+			{
+				id : '3', 
+				image: 'resources/images/placeholder.png',
+				category: 'Dermatology'
+			},
+			{
+				id : '4', 
+				image: 'resources/images/placeholder.png',
+				category: 'Endocrine'
+			},
+			{
+				id : '5', 
+				image: 'resources/images/placeholder.png',
+				category: 'ENT'
+			},
+			{
+				id : '6', 
+				image: 'resources/images/placeholder.png',
+				category: 'Haematology'
+			},
+			{
+				id : '7', 
+				image: 'resources/images/placeholder.png',
+				category: 'Musculoskeletal'
+			},
+			{
+				id : '8', 
+				image: 'resources/images/placeholder.png',
+				category: 'Neurology'
+			},
+			{
+				id : '9', 
+				image: 'resources/images/placeholder.png',
+				category: 'Opthalmology'
+			},
+			{
+				id : '10', 
+				image: 'resources/images/placeholder.png',
+				category: 'Psychiatry'
+			},
+			{
+				id : '11', 
+				image: 'resources/images/placeholder.png',
+				category: 'Renal'
+			},
+			{
+				id : '12', 
+				image: 'resources/images/placeholder.png',
+				category: 'Resipiratory'
+			}
+		]
+	}
+});
+
 Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 	extend:  Ext.Panel ,
 	xtype: 'flashcardSelectScreen',
@@ -75062,9 +75088,7 @@ Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 	            mode: 'MULTI',
 	            cls: 'dataview-inline',
 	            selectedCls: 'card-cat-selected',
-	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
-	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
-	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            itemTpl: '<div class="card_container"><div class="img" style="background-image: url({image});"></div><div class="category_title">{category}</div></div>',
 	            store: 'CardCategories'
         	}
 		]
@@ -75704,9 +75728,6 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
-        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.CardCategories.process('feed.js');
-
         Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
         MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 

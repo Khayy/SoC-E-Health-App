@@ -77,9 +77,6 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
-        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.CardCategories.process('feed.js');
-
         Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
         MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 

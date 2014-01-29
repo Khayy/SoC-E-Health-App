@@ -671,7 +671,6 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
   "MedBlogs.util.Proxy.Announcements": [],
-  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [],
   "MedBlogs.view.FlashCardsNavigation": [],
   "MedBlogs.view.Help": [],
@@ -1438,7 +1437,6 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
   "MedBlogs.util.Proxy.Announcements": [],
-  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [
     "widget.feedsNavigation"
   ],

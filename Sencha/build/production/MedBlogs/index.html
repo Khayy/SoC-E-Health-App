@@ -14,6 +14,10 @@
             background-color: #1985D0
         }
 
+        .hidden {
+            margin-left:-1000em ! important;
+        }
+
         #appLoadingIndicator {
             position: absolute;
             top: 50%;
@@ -48,9 +52,63 @@
                 opacity: 0.8
             }
         }
+        
+        .feed_list {
+            clear: both;
+        }
+        
+        .feed_detail {
+            clear: both;
+            margin: 20px 20px;
+        }
+
+        .title {
+            font-weight: bold;
+            font-size: large;
+        }
+        
+        .link {
+            
+            
+        }
+        
+        .date {
+            float: right;
+            font-style: italic;
+            font-size: small;
+        
+        }
+        
+        .creator {
+            font-style: italic;
+            font-size: small;
+        
+        }
+        
+        .category {
+            text-align: center;
+            clear: both;
+            font-weight: bold;
+            font-size: large;
+        
+        }
+        
+        .description {
+            clear: both;
+            font-size: normal;
+        
+        }
+        
+        .card-cat-selected {
+	        border-color: #ff0000;
+	        border-style: solid;
+	        border-width: 1px;
+        }
+
     </style>
     <!-- The line below must be kept intact for Sencha Command to build your application -->
-    <script type="text/javascript">/**
+    <script type="text/javascript" src="PushNotification.js"></script>
+     <script type="text/javascript">/**
  * Sencha Blink
  * @author Jacky Nguyen <jacky@sencha.com>
  */
@@ -792,7 +850,6 @@
         }
     };
 })(this);Ext.blink({id:'6d2cf733-af1d-43ce-818f-c82f4d5be75d'});</script>
-    
     </head>
 <body>
     <div id="appLoadingIndicator">

@@ -5,14 +5,7 @@ Ext.define('MedBlogs.model.CardCategories', {
         fields: [
             'id',
             'image',
-            'category',
-            'sessionIds',
-            'bio',
-            'position',
-            'photo',
-            'affiliation',
-            'url',
-            'twitter'
+            'category'
         ]
     }
 });
