@@ -76021,62 +76021,62 @@ Ext.define('MedBlogs.store.CardCategories', {
 		[
 			{
 				id : '1', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/ageing_and_child_development.jpg',
 				category: 'Ageing &amp; childhood<br />development'
 			},
 			{
 				id : '2', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/cardiology.jpg',
 				category: 'Cardiovascular<br /> &nbsp;'
 			},
 			{
 				id : '3', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/dermatology.jpg',
 				category: 'Dermatology<br /> &nbsp;'
 			},
 			{
 				id : '4', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/endocrinology.jpg',
 				category: 'Endocrine<br /> &nbsp;'
 			},
 			{
 				id : '5', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/ENT.jpg',
 				category: 'ENT<br /> &nbsp;'
 			},
 			{
 				id : '6', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/GI.jpg',
 				category: 'Haematology<br /> &nbsp;'
 			},
 			{
 				id : '7', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/musculoskeletal.jpg',
 				category: 'Musculoskeletal<br /> &nbsp;'
 			},
 			{
 				id : '8', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/neurology.jpg',
 				category: 'Neurology<br /> &nbsp;'
 			},
 			{
 				id : '9', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/opthalmology.jpg',
 				category: 'Opthalmology<br /> &nbsp;'
 			},
 			{
 				id : '10', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/psychiatry.jpg',
 				category: 'Psychiatry<br /> &nbsp;'
 			},
 			{
 				id : '11', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/renal.jpg',
 				category: 'Renal<br /> &nbsp;'
 			},
 			{
 				id : '12', 
-				image: 'resources/images/placeholder.png',
+				image: 'resources/images/resipiratory.jpg',
 				category: 'Resipiratory<br /> &nbsp;'
 			}
 		]
@@ -76872,6 +76872,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
         } else if (item.xtype == "cardScreen") {
+            this.resetForm();
             this.hideButton(this.getSubmitButton());
             this.showButton(this.getSkipButton());
             this.showButton(this.getDoneButton());
@@ -76884,6 +76885,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
         } else if (item.xtype == "cardScreen") {
+            Ext.getStore('FlashCards').removeAll();
+            Ext.getStore('FlashCards').sync();
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
@@ -76895,7 +76898,12 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
             Ext.getStore('FlashCards').load();
             this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
-        } 
+        }  else {
+            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
+            Ext.getStore('FlashCards').load();
+            this.loadNewQuestion();
+        }
+        
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
             this.showButton(this.getAnswerPanel());
             this.showButton(this.getButtonPanel());
@@ -76973,14 +76981,32 @@ Ext.define('MedBlogs.store.FlashCards',{
 			{
 				id : '1', 
 				category: 'anatomy',
-				question: 'Which part of the body lala ?',
-				answer: 'This part of the body lala'
+				question: 'What is important to remember about a sudden decline in health in the elderly?',
+				answer: 'Always due to disease'
 			},
 			{
 				id : '2', 
 				category: 'anatomy',
-				question: 'Which bone in the body is... ?',
-				answer: 'This bone is ...'
+				question: 'What are the key to living to the age of 100?',
+				answer: 'Non-smoker<br />Slim, tall<br />Little diabetes, dementia, heart disease<br />Practical, strong<br />Keep friends'
+			},
+			{
+				id : '3', 
+				category: 'anatomy',
+				question: 'How much walking per week confers with substantial benefits to your health 30% cardiovascular event reduction?',
+				answer: '45-75 min per week'
+			},
+			{
+				id : '4', 
+				category: 'anatomy',
+				question: 'Does a 50% calorie restricted diet make you live longer?',
+				answer: 'Proved correct in rats'
+			},
+			{
+				id : '5', 
+				category: 'anatomy',
+				question: 'Why are old people different in terms of their presentation of illness? ',
+				answer: 'May mount of an immune response<br />Blunted heart rate rise<br />Comorbid disease (eg. Heart failure, renal failure, dementia)<br />Polypharmacy (eg. Beta blockers)'
 			}
 		]
 	}
@@ -77195,5 +77221,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
+// @require /Users/tobyp/Desktop/Project Repositories /SoC-E-Health-App/Sencha/app.js
 
