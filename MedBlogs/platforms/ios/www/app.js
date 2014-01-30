@@ -48549,6 +48549,7 @@ Ext.define('Ext.data.proxy.Server', {
             callback.call(scope || me, operation);
         }
 
+        console.log("request callback in server proxy");
         me.afterRequest(request, success);
     },
 
@@ -55998,6 +55999,7 @@ Ext.define('Ext.data.JsonP', {
         } else {
             Ext.callback(request.success, request.scope, [result, request]);
         }
+        console.log("JSONp data callbacks");
         Ext.callback(request.callback, request.scope, [success, result, request.errorType, request]);
     },
 
@@ -57974,6 +57976,293 @@ Ext.define('Ext.data.identifier.Uuid', {
     this.Global = new this({
         id: 'uuid'
     });
+});
+
+/**
+ * @author Ed Spencer
+ * @aside guide proxies
+ *
+ * The JsonP proxy is useful when you need to load data from a domain other than the one your application is running on. If
+ * your application is running on http://domainA.com it cannot use {@link Ext.data.proxy.Ajax Ajax} to load its data
+ * from http://domainB.com because cross-domain ajax requests are prohibited by the browser.
+ *
+ * We can get around this using a JsonP proxy. JsonP proxy injects a `<script>` tag into the DOM whenever an AJAX request
+ * would usually be made. Let's say we want to load data from http://domainB.com/users - the script tag that would be
+ * injected might look like this:
+ *
+ *     <script src="http://domainB.com/users?callback=someCallback"></script>
+ *
+ * When we inject the tag above, the browser makes a request to that url and includes the response as if it was any
+ * other type of JavaScript include. By passing a callback in the url above, we're telling domainB's server that we want
+ * to be notified when the result comes in and that it should call our callback function with the data it sends back. So
+ * long as the server formats the response to look like this, everything will work:
+ *
+ *     someCallback({
+ *         users: [
+ *             {
+ *                 id: 1,
+ *                 name: "Ed Spencer",
+ *                 email: "ed@sencha.com"
+ *             }
+ *         ]
+ *     });
+ *
+ * As soon as the script finishes loading, the 'someCallback' function that we passed in the url is called with the JSON
+ * object that the server returned.
+ *
+ * JsonP proxy takes care of all of this automatically. It formats the url you pass, adding the callback parameter
+ * automatically. It even creates a temporary callback function, waits for it to be called and then puts the data into
+ * the Proxy making it look just like you loaded it through a normal {@link Ext.data.proxy.Ajax AjaxProxy}. Here's how
+ * we might set that up:
+ *
+ *     Ext.define('User', {
+ *         extend: 'Ext.data.Model',
+ *         config: {
+ *             fields: ['id', 'name', 'email']
+ *         }
+ *     });
+ *
+ *     var store = Ext.create('Ext.data.Store', {
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users'
+ *         }
+ *     });
+ *
+ *     store.load();
+ *
+ * That's all we need to do - JsonP proxy takes care of the rest. In this case the Proxy will have injected a script tag
+ * like this:
+ *
+ *     <script src="http://domainB.com/users?callback=callback1"></script>
+ *
+ * # Customization
+ *
+ * This script tag can be customized using the {@link #callbackKey} configuration. For example:
+ *
+ *     var store = Ext.create('Ext.data.Store', {
+ *         model: 'User',
+ *         proxy: {
+ *             type: 'jsonp',
+ *             url : 'http://domainB.com/users',
+ *             callbackKey: 'theCallbackFunction'
+ *         }
+ *     });
+ *
+ *     store.load();
+ *
+ * Would inject a script tag like this:
+ *
+ *     <script src="http://domainB.com/users?theCallbackFunction=callback1"></script>
+ *
+ * # Implementing on the server side
+ *
+ * The remote server side needs to be configured to return data in this format. Here are suggestions for how you might
+ * achieve this using Java, PHP and ASP.net:
+ *
+ * Java:
+ *
+ *     boolean jsonP = false;
+ *     String cb = request.getParameter("callback");
+ *     if (cb != null) {
+ *         jsonP = true;
+ *         response.setContentType("text/javascript");
+ *     } else {
+ *         response.setContentType("application/x-json");
+ *     }
+ *     Writer out = response.getWriter();
+ *     if (jsonP) {
+ *         out.write(cb + "(");
+ *     }
+ *     out.print(dataBlock.toJsonString());
+ *     if (jsonP) {
+ *         out.write(");");
+ *     }
+ *
+ * PHP:
+ *
+ *     $callback = $_REQUEST['callback'];
+ *
+ *     // Create the output object.
+ *     $output = array('a' => 'Apple', 'b' => 'Banana');
+ *
+ *     //start output
+ *     if ($callback) {
+ *         header('Content-Type: text/javascript');
+ *         echo $callback . '(' . json_encode($output) . ');';
+ *     } else {
+ *         header('Content-Type: application/x-json');
+ *         echo json_encode($output);
+ *     }
+ *
+ * ASP.net:
+ *
+ *     String jsonString = "{success: true}";
+ *     String cb = Request.Params.Get("callback");
+ *     String responseString = "";
+ *     if (!String.IsNullOrEmpty(cb)) {
+ *         responseString = cb + "(" + jsonString + ")";
+ *     } else {
+ *         responseString = jsonString;
+ *     }
+ *     Response.Write(responseString);
+ */
+Ext.define('Ext.data.proxy.JsonP', {
+    extend:  Ext.data.proxy.Server ,
+    alternateClassName: 'Ext.data.ScriptTagProxy',
+    alias: ['proxy.jsonp', 'proxy.scripttag'],
+                                 
+
+    config: {
+        defaultWriterType: 'base',
+
+        /**
+         * @cfg {String} callbackKey
+         * See {@link Ext.data.JsonP#callbackKey}.
+         * @accessor
+         */
+        callbackKey : 'callback',
+
+        /**
+         * @cfg {String} recordParam
+         * The param name to use when passing records to the server (e.g. 'records=someEncodedRecordString').
+         * @accessor
+         */
+        recordParam: 'records',
+
+        /**
+         * @cfg {Boolean} autoAppendParams
+         * `true` to automatically append the request's params to the generated url.
+         * @accessor
+         */
+        autoAppendParams: true
+    },
+
+    /**
+     * Performs the read request to the remote domain. JsonP proxy does not actually create an Ajax request,
+     * instead we write out a `<script>` tag based on the configuration of the internal Ext.data.Request object
+     * @param {Ext.data.Operation} operation The {@link Ext.data.Operation Operation} object to execute.
+     * @param {Function} callback A callback function to execute when the Operation has been completed.
+     * @param {Object} scope The scope to execute the callback in.
+     * @return {Object}
+     * @protected
+     */
+    doRequest: function(operation, callback, scope) {
+        var action = operation.getAction();
+        if (action !== 'read') {
+            Ext.Logger.error('JsonP proxies can only be used to read data.');
+        }
+
+        //generate the unique IDs for this request
+        var me      = this,
+            request = me.buildRequest(operation),
+            params  = request.getParams();
+
+        // apply JsonP proxy-specific attributes to the Request
+        request.setConfig({
+            callbackKey: me.getCallbackKey(),
+            timeout: me.getTimeout(),
+            scope: me,
+            callback: me.createRequestCallback(request, operation, callback, scope)
+        });
+
+        // Prevent doubling up because the params are already added to the url in buildUrl
+        if (me.getAutoAppendParams()) {
+            request.setParams({});
+        }
+
+        request.setJsonP(Ext.data.JsonP.request(request.getCurrentConfig()));
+
+        // Set the params back once we have made the request though
+        request.setParams(params);
+
+        operation.setStarted();
+
+        me.lastRequest = request;
+
+        return request;
+    },
+
+    /**
+     * @private
+     * Creates and returns the function that is called when the request has completed. The returned function
+     * should accept a Response object, which contains the response to be read by the configured Reader.
+     * The third argument is the callback that should be called after the request has been completed and the Reader has decoded
+     * the response. This callback will typically be the callback passed by a store, e.g. in proxy.read(operation, theCallback, scope)
+     * theCallback refers to the callback argument received by this function.
+     * See {@link #doRequest} for details.
+     * @param {Ext.data.Request} request The Request object.
+     * @param {Ext.data.Operation} operation The Operation being executed.
+     * @param {Function} callback The callback function to be called when the request completes. This is usually the callback
+     * passed to doRequest.
+     * @param {Object} scope The scope in which to execute the callback function.
+     * @return {Function} The callback function.
+     */
+    createRequestCallback: function(request, operation, callback, scope) {
+        var me = this;
+        return function(success, response, errorType) {
+            delete me.lastRequest;
+            console.log("request callback in proxy");
+            var lal = me.processResponse(success, operation, request, response, callback, scope);
+            return lal;
+        };
+    },
+
+    // @inheritdoc
+    setException: function(operation, response) {
+        operation.setException(operation.getRequest().getJsonP().errorType);
+    },
+
+
+    /**
+     * Generates a url based on a given Ext.data.Request object. Adds the params and callback function name to the url
+     * @param {Ext.data.Request} request The request object.
+     * @return {String} The url.
+     */
+    buildUrl: function(request) {
+        var me      = this,
+            url     = me.callParent(arguments),
+            params  = Ext.apply({}, request.getParams()),
+            filters = params.filters,
+            filter, i, value;
+
+        delete params.filters;
+
+        if (me.getAutoAppendParams()) {
+            url = Ext.urlAppend(url, Ext.Object.toQueryString(params));
+        }
+
+        if (filters && filters.length) {
+            for (i = 0; i < filters.length; i++) {
+                filter = filters[i];
+                value = filter.getValue();
+                if (value) {
+                    url = Ext.urlAppend(url, filter.getProperty() + "=" + value);
+                }
+            }
+        }
+
+        return url;
+    },
+
+    /**
+     * @inheritdoc
+     */
+    destroy: function() {
+        this.abort();
+        this.callParent(arguments);
+    },
+
+    /**
+     * Aborts the current server request if one is currently running.
+     */
+    abort: function() {
+        var lastRequest = this.lastRequest;
+        if (lastRequest) {
+            Ext.data.JsonP.abort(lastRequest.getJsonP());
+        }
+    }
 });
 
 /**
@@ -67982,6 +68271,205 @@ Ext.define('Ext.event.recognizer.Tap', {
 });
 
 /**
+ * @aside guide forms
+ * @aside example forms
+ * @aside example forms-toolbars
+ *
+ * A FieldSet is a great way to visually separate elements of a form. It's normally used when you have a form with
+ * fields that can be divided into groups - for example a customer's billing details in one fieldset and their shipping
+ * address in another. A fieldset can be used inside a form or on its own elsewhere in your app. Fieldsets can
+ * optionally have a title at the top and instructions at the bottom. Here's how we might create a FieldSet inside a
+ * form:
+ *
+ *     @example
+ *     Ext.create('Ext.form.Panel', {
+ *         fullscreen: true,
+ *         items: [
+ *             {
+ *                 xtype: 'fieldset',
+ *                 title: 'About You',
+ *                 instructions: 'Tell us all about yourself',
+ *                 items: [
+ *                     {
+ *                         xtype: 'textfield',
+ *                         name : 'firstName',
+ *                         label: 'First Name'
+ *                     },
+ *                     {
+ *                         xtype: 'textfield',
+ *                         name : 'lastName',
+ *                         label: 'Last Name'
+ *                     }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *
+ * Above we created a {@link Ext.form.Panel form} with a fieldset that contains two text fields. In this case, all
+ * of the form fields are in the same fieldset, but for longer forms we may choose to use multiple fieldsets. We also
+ * configured a {@link #title} and {@link #instructions} to give the user more information on filling out the form if
+ * required.
+ */
+Ext.define('Ext.form.FieldSet', {
+    extend  :  Ext.Container ,
+    alias   : 'widget.fieldset',
+                            
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'form-fieldset',
+
+        /**
+         * @cfg {String} title
+         * Optional fieldset title, rendered just above the grouped fields.
+         *
+         * ## Example
+         *
+         *     Ext.create('Ext.form.Fieldset', {
+         *         fullscreen: true,
+         *
+         *         title: 'Login',
+         *
+         *         items: [{
+         *             xtype: 'textfield',
+         *             label: 'Email'
+         *         }]
+         *     });
+         * 
+         * @accessor
+         */
+        title: null,
+
+        /**
+         * @cfg {String} instructions
+         * Optional fieldset instructions, rendered just below the grouped fields.
+         *
+         * ## Example
+         *
+         *     Ext.create('Ext.form.Fieldset', {
+         *         fullscreen: true,
+         *
+         *         instructions: 'Please enter your email address.',
+         *
+         *         items: [{
+         *             xtype: 'textfield',
+         *             label: 'Email'
+         *         }]
+         *     });
+         * 
+         * @accessor
+         */
+        instructions: null
+    },
+
+    // @private
+    applyTitle: function(title) {
+        if (typeof title == 'string') {
+            title = {title: title};
+        }
+
+        Ext.applyIf(title, {
+            docked : 'top',
+            baseCls: this.getBaseCls() + '-title'
+        });
+
+        return Ext.factory(title, Ext.Title, this._title);
+    },
+
+    // @private
+    updateTitle: function(newTitle, oldTitle) {
+        if (newTitle) {
+            this.add(newTitle);
+        }
+        if (oldTitle) {
+            this.remove(oldTitle);
+        }
+    },
+
+    // @private
+    getTitle: function() {
+        var title = this._title;
+
+        if (title && title instanceof Ext.Title) {
+            return title.getTitle();
+        }
+
+        return title;
+    },
+
+    // @private
+    applyInstructions: function(instructions) {
+        if (typeof instructions == 'string') {
+            instructions = {title: instructions};
+        }
+
+        Ext.applyIf(instructions, {
+            docked : 'bottom',
+            baseCls: this.getBaseCls() + '-instructions'
+        });
+
+        return Ext.factory(instructions, Ext.Title, this._instructions);
+    },
+
+    // @private
+    updateInstructions: function(newInstructions, oldInstructions) {
+        if (newInstructions) {
+            this.add(newInstructions);
+        }
+        if (oldInstructions) {
+            this.remove(oldInstructions);
+        }
+    },
+
+    // @private
+    getInstructions: function() {
+        var instructions = this._instructions;
+
+        if (instructions && instructions instanceof Ext.Title) {
+            return instructions.getTitle();
+        }
+
+        return instructions;
+    },
+
+    /**
+     * A convenient method to disable all fields in this FieldSet
+     * @return {Ext.form.FieldSet} This FieldSet
+     */
+     
+    doSetDisabled: function(newDisabled) {
+        this.getFieldsAsArray().forEach(function(field) {
+            field.setDisabled(newDisabled);
+        });
+
+        return this;
+    },
+
+    /**
+     * @private
+     */
+    getFieldsAsArray: function() {
+        var fields = [],
+            getFieldsFrom = function(item) {
+                if (item.isField) {
+                    fields.push(item);
+                }
+
+                if (item.isContainer) {
+                    item.getItems().each(getFieldsFrom);
+                }
+            };
+
+        this.getItems().each(getFieldsFrom);
+
+        return fields;
+    }
+});
+
+/**
  * @private
  */
 Ext.define('Ext.fx.runner.Css', {
@@ -74629,12 +75117,508 @@ Ext.define('Ext.viewport.Viewport', {
  * you should **not** use {@link Ext#onReady}.
  */
 
+Ext.define('MedBlogs.CustomPullRefresh', {
+    extend:  Ext.Component ,
+    alias: 'plugin.custompullrefresh',
+                                 
+
+    config: {
+
+        onRefresh: null,
+        loadNextPage: null,
+        /**
+         * @cfg {Ext.dataview.List} list
+         * The list to which this PullRefresh plugin is connected.
+         * This will usually by set automatically when configuring the list with this plugin.
+         * @accessor
+         */
+        list: null,
+
+        /**
+         * @cfg {String} pullText The text that will be shown while you are pulling down.
+         * @accessor
+         */
+        pullText: 'Pull down to refresh...',
+
+        /**
+         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
+         * @accessor
+         */
+        releaseText: 'Release to refresh...',
+
+        /**
+         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
+         * @accessor
+         */
+        loadingText: 'Loading...',
+
+        /**
+         * @cfg {String} loadedText The text that will be when data has been loaded.
+         * @accessor
+         */
+        loadedText: 'Loaded.',
+
+        /**
+         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
+         * @accessor
+         */
+        lastUpdatedText: 'Last Updated:&nbsp;',
+
+        /**
+         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
+         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
+         * that will be loading and have unspecified heights.
+         */
+        scrollerAutoRefresh: false,
+
+        /**
+         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
+         * If false call {@link #snapBack}() to manually snap the pulldown back.
+         */
+        autoSnapBack: true,
+
+        /**
+         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
+         * @accessor
+         */
+        snappingAnimationDuration: 300,
+        /**
+         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
+         */
+        lastUpdatedDateFormat: 'm/d/Y h:iA',
+
+        /**
+         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
+         */
+        overpullSnapBackDuration: 300,
+
+        /**
+         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
+         * Will be passed a config object with properties state, message and updated
+         *
+         * @accessor
+         */
+        pullTpl: [
+            '<div class="x-list-pullrefresh-arrow"></div>',
+            '<div class="x-loading-spinner">',
+                '<span class="x-loading-top"></span>',
+                '<span class="x-loading-right"></span>',
+                '<span class="x-loading-bottom"></span>',
+                '<span class="x-loading-left"></span>',
+            '</div>',
+            '<div class="x-list-pullrefresh-wrap">',
+                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
+                '<div class="x-list-pullrefresh-updated">{updated}</div>',
+            '</div>'
+        ].join(''),
+
+        translatable: true
+    },
+
+    // @private
+    $state: "pull",
+    // @private
+    getState: function() {
+        return this.$state
+    },
+    // @private
+    setState: function(value) {
+        this.$state = value;
+        this.updateView();
+    },
+    // @private
+    $isSnappingBack: false,
+    // @private
+    getIsSnappingBack: function() {
+        return this.$isSnappingBack;
+    },
+    // @private
+    setIsSnappingBack: function(value) {
+        this.$isSnappingBack = value;
+    },
+
+    // @private
+    $pageNumber: 1,
+    // @private
+    getPageNumber: function() {
+        return this.$pageNumber
+    },
+    // @private
+    setPageNumber: function(value) {
+        this.$pageNumber = value;
+        //this.updateView();
+    },
+    incrementPageNumber: function() {
+        this.$pageNumber++;
+        //this.updateView();
+    },
+
+    // @private
+    init: function(list) {
+        var me = this;
+
+        me.setList(list);
+        me.initScrollable();
+    },
+
+    getElementConfig: function() {
+        return {
+            reference: 'element',
+            classList: ['x-unsized'],
+            children: [
+                {
+                    reference: 'innerElement',
+                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
+                }
+            ]
+        };
+    },
+
+    // @private
+    initScrollable: function() {
+        var me = this,
+            list = me.getList(),
+            scrollable = list.getScrollable(),
+            scroller;
+
+        if (!scrollable) {
+            return;
+        }
+
+        scroller = scrollable.getScroller();
+        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
+
+        me.lastUpdated = new Date();
+
+        list.insert(0, me);
+
+        scroller.on({
+            scroll: me.onScrollChange,
+            scope: me
+        });
+
+        this.updateView();
+    },
+
+    // @private
+    applyPullTpl: function(config) {
+        if (config instanceof Ext.XTemplate) {
+            return config
+        } else {
+            return new Ext.XTemplate(config);
+        }
+    },
+
+    // @private
+    updateList: function(newList, oldList) {
+        var me = this;
+
+        if (newList && newList != oldList) {
+            newList.on({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        } else if (oldList) {
+            oldList.un({
+                order: 'after',
+                scrollablechange: me.initScrollable,
+                scope: me
+            });
+        }
+    },
+
+    // @private
+    getPullHeight: function() {
+       return this.innerElement.getHeight();
+    },
+
+    /**
+     * @private
+     * Attempts to load the newest posts via the attached List's Store's Proxy
+     */
+    fetchLatest: function() {
+        console.log("fetch latest called");
+        var store = this.getList().getStore(),
+            proxy = store.getProxy(),
+            operation;
+
+        operation = Ext.create('Ext.data.Operation', {
+            page: 1,
+            start: 0,
+            model: store.getModel(),
+            limit: store.getPageSize(),
+            action: 'read',
+            sorters: store.getSorters(),
+            filters: store.getRemoteFilter() ? store.getFilters() : []
+        });
+
+        proxy.read(operation, this.onLatestFetched, this);
+    },
+
+    /**
+     * @private
+     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
+     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
+     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
+     * timeline between the new and the old records.
+     */
+    onLatestFetched: function(operation) {
+        console.log("fetch latest finished callback");
+        var store = this.getList().getStore(),
+            oldRecords = store.getData(),
+            newRecords = operation.getRecords(),
+            length = newRecords.length,
+            toInsert = [],
+            newRecord, oldRecord, i;
+
+        for (i = 0; i < length; i++) {
+            newRecord = newRecords[i];
+            oldRecord = oldRecords.getByKey(newRecord.getId());
+
+            if (oldRecord) {
+                oldRecord.set(newRecord.getData());
+            } else {
+                toInsert.push(newRecord);
+            }
+
+            oldRecord = undefined;
+        }
+
+        store.insert(0, toInsert);
+        this.setState("loaded");
+        this.fireEvent('latestfetched', this, toInsert);
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    onRefreshFinished: function() {
+        console.log("refresh finished callback");
+        this.setState("loaded");
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * Snaps the List back to the top after a pullrefresh is complete
+     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
+     */
+    snapBack: function(force) {
+        if(this.getState() !== "loaded" && force !== true) return;
+
+        var list = this.getList(),
+            scroller = list.getScrollable().getScroller();
+
+        scroller.refresh();
+        scroller.minPosition.y = 0;
+
+        scroller.on({
+            scrollend: this.onSnapBackEnd,
+            single: true,
+            scope: this
+        });
+
+        this.setIsSnappingBack(true);
+        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
+    },
+
+    /**
+     * @private
+     * Called when PullRefresh has been snapped back to the top
+     */
+    onSnapBackEnd: function() {
+        this.setState("pull");
+        this.setIsSnappingBack(false);
+    },
+
+    /**
+     * @private
+     * Called when the Scroller updates from the list
+     * @param scroller
+     * @param x
+     * @param y
+     */
+    onScrollChange: function(scroller, x, y) {
+        var pullHeight = this.getPullHeight();
+        if (y <= 0) {
+            var isSnappingBack = this.getIsSnappingBack();
+
+            if(this.getState() === "loaded" && !isSnappingBack) {
+                this.snapBack();
+            }
+
+            if (this.getState() !== "loading" && this.getState() !=="loaded") {
+                if (-y >= pullHeight + 10) {
+                    this.setState("release");
+                    scroller.getContainer().onBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
+                    this.setState("pull");
+                    scroller.getContainer().unBefore({
+                        dragend: 'onScrollerDragEnd',
+                        single: true,
+                        scope: this
+                    });
+                }
+            }
+            this.getTranslatable().translate(0, -y);
+        } else {
+
+             if (y >= (scroller.maxPosition.y -10) && this.getState() !== "loading") {
+                console.log("should load more");
+                this.setState("release");
+                scroller.getContainer().onBefore({
+                    dragend: 'onScrollerBottomEnd',
+                    single: true,
+                    scope: this
+                });    
+            }
+        }
+    },
+
+    pageLoaded: function(){
+        console.log("page finished callback");
+        this.setState("loaded");
+        if (this.getAutoSnapBack()) {
+            this.snapBack();
+        }
+    },
+
+    /**
+     * @private
+     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
+     */
+    onScrollerDragEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            scroller.minPosition.y = -this.getPullHeight();
+            scroller.on({
+                scrollend: function(){
+                    console.log("scroll end");
+                    console.log(scroller.maxPosition.y);
+                    if (this.getOnRefresh()) {
+                        console.log("refresh to do");
+                        this.getOnRefresh().call( this.onRefreshFinished(), this);
+                    } else {
+                        console.log("fetch latest to do");
+                        this.getFetchLatest();
+                    }
+                },
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    onScrollerBottomEnd: function() {
+        if (this.getState() !== "loading") {
+            var list = this.getList(),
+                scroller = list.getScrollable().getScroller(),
+                translateable = scroller.getTranslatable();
+
+            this.setState("loading");
+            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
+            //scroller.maxPosition.y = scroller.maxPosition.y + this.getPullHeight();
+            scroller.on({
+                scrollend: function(){
+                    console.log("scroll end load more");
+                    //this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
+                    //this.getList().setScrollToTopOnRefresh(false);
+                    this.incrementPageNumber()
+                    console.log(this.getPageNumber());
+                    this.getLoadNextPage(this.pageLoaded(), this);
+                },
+                single: true,
+                scope: this
+            });
+        }
+    },
+
+    /**
+     * @private
+     * Updates the content based on the PullRefresh Template
+     */
+    updateView: function() {
+        var state = this.getState(),
+            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
+            templateConfig = {state: state, updated: lastUpdatedText},
+            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
+            fn = "get" + stateFn + "Text";
+
+        if (this[fn] && Ext.isFunction(this[fn])) {
+            templateConfig.message = this[fn].call(this);
+        }
+
+        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
+        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
+        this.getPullTpl().overwrite(this.innerElement, templateConfig);
+    }
+}, function() {
+
+    /**
+     * Updates the PullRefreshText.
+     * @method setPullRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
+
+    /**
+     * Updates the ReleaseRefreshText.
+     * @method setReleaseRefreshText
+     * @param {String} text
+     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} pullReleaseText
+                 * Optional Text during the Release State.
+                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
+                 */
+                if (config.hasOwnProperty('pullReleaseText')) {
+                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
+                    config.releaseText = config.pullReleaseText;
+                    delete config.pullReleaseText;
+                }
+
+                /**
+                 * @cfg {String} pullRefreshText
+                 * Optional Text during the Pull State.
+                 * @deprecated 2.3.0 Please use {@link #pullText} instead
+                 */
+                if (config.hasOwnProperty('pullRefreshText')) {
+                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
+                    config.pullText = config.pullRefreshText;
+                    delete config.pullRefreshText;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+});
+
 Ext.define('MedBlogs.model.Announcements',{
 
 	extend:  Ext.data.Model ,
 	config: {
 		fields: 
 		[
+			'uid',
 		    'title',
 			'link',
 			{name: 'pubDate', type: 'int'},
@@ -74693,15 +75677,8 @@ Ext.define('MedBlogs.model.CardCategories', {
     config: {
         fields: [
             'id',
-            'first_name',
-            'last_name',
-            'sessionIds',
-            'bio',
-            'position',
-            'photo',
-            'affiliation',
-            'url',
-            'twitter'
+            'image',
+            'category'
         ]
     }
 });
@@ -74719,50 +75696,12 @@ Ext.define('MedBlogs.model.FlashCards', {
     }
 });
 
-Ext.define('MedBlogs.util.Proxy.CardCategories', {
+/*Ext.define('MedBlogs.util.Proxy.Announcements', {
     singleton: true,
-                                 
-
-    process: function(url) {
-        var speakerStore = Ext.getStore('CardCategories'),
-            speakerIds = [],
-            speakerModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            callbackName: 'feedCb',
-
-            success: function(data) {
-                Ext.Array.each(data.proposals, function(proposal) {
-                    Ext.Array.each(proposal.speakers, function(speaker) {
-                        // don't add duplicates or items with no photos.
-                        if (speakerIds.indexOf(speaker.id) == -1 && speaker.photo && speakerIds.length < 25) {
-                            speakerIds.push(speaker.id);
-
-                            speakerModel = Ext.create('MedBlogs.model.CardCategories', speaker);
-                            speakerStore.add(speakerModel);
-                        }
-                    });
-                });
-            }
-        });
-    }
-});
-
-Ext.define('MedBlogs.store.CardCategories', {
-    extend:  Ext.data.Store ,
-
-    config: {
-        model: 'MedBlogs.model.CardCategories'
-    }
-});
-
-Ext.define('MedBlogs.util.Proxy.Announcements', {
-    singleton: true,
-               
-                                       
-                        
-      
+    requires: [
+        'MedBlogs.model.Announcements',
+        'Ext.data.JsonP'
+    ],
 
     process: function(url) {
         var announcementStore = Ext.getStore('Announcements'),
@@ -74772,89 +75711,73 @@ Ext.define('MedBlogs.util.Proxy.Announcements', {
         Ext.data.JsonP.request({
             url: url,
             //callbackKey: 'feedscb',
-            callbackName: 'feedscb',    
+            //callbackName: 'feedscb',    
             
             callback: function(successful, data){
                 if(successful === true) {
+                    console.log(data.items.toString());
                     Ext.Array.each(data.items, function(item) {
                             // don't add duplicates and make the dates into date format
-                            //if (announcementIds.indexOf(item.id) == -1) {
-                                announcementIds.push(item.id);
-
+                            //if (announcementIds.indexOf(item.get('uid')) == -1) {
+                                //announcementIds.push(item);
+                            //if(announcementStore.getCount() < announcementStore.getPageSize()) {
                                 announcementModel = Ext.create('MedBlogs.model.Announcements', item);
                                 var tempDate = new Date(item.pubDate);
-                                //JANUARY 19, 2014
                                 var month = tempDate.getMonth() + 1;
                                 if(month<10) month = '0' + month;
-                                var toDisplay = tempDate.getDate() + '/' + month + '/' + tempDate.getFullYear();
+                                var day = tempDate.getDate();
+                                if(day<10) day = '0' + day;
+                                var toDisplay = day + '/' + month + '/' + tempDate.getFullYear();
                                 announcementModel.set('date', toDisplay);
                                 announcementStore.add(announcementModel);
                             //}
+                            //}
                     });
+                    announcementStore.sync();
                 } else {
                     Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
                 }
             }
-            /*
-
-            success: function(data) {
-                Ext.Array.each(data.items, function(item) {
-                        // don't add duplicates and make the dates into date format
-                        if (announcementIds.indexOf(item.id) == -1) {
-                            announcementIds.push(item.id);
-
-                            announcementModel = Ext.create('MedBlogs.model.Announcements', item);
-                            announcementModel.set('date') = toString(new Date(item.pubDate));
-                            announcementStore.add(announcementModel);
-                        }
-                });
-            },
-            failure: function(){
-                Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
-            } */
         });
     }
 });
+*/
 
 Ext.define('MedBlogs.store.Announcements', {
     extend:  Ext.data.Store ,
 
+                
+                                      
+                                             
+      
+
     config: {
         model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
         pageSize: 10,
+        autoLoad:true,
+        //remoteFilter: true,
+        //remoteSort: true,
         sorters:[{
             property:'pubDate',
             direction:'DESC'
         }]
-    }
-});
-
-/*Ext.define('MedBlogs.store.Announcements',{
-    extend: 'Ext.data.Store',
-
-    requires: [
-        'MedBlogs.model.Announcements',
-        'Ext.data.proxy.JsonP'
-    ],
-    config: {
-        model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
-        pageSize: 10,
+        ,
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
             startParam:'offset',
             limitParam:'limit',
-            page:'page',
             reader: {
                 type: 'json',
                 rootProperty: 'items'
+            },
+            afterRequest: function(request, success){
+                console.log("success ");
+                console.log("success " + success);
             }
         }
     }
 });
-*/
 
 Ext.define('MedBlogs.view.feeds.Feeds', {
 	extend:  Ext.Panel ,
@@ -74877,16 +75800,59 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-				store: 'Announcements',
+				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
 				plugins: [
+					
 					{
-						xclass:'Ext.plugin.ListPaging',
-						autoLoad:true
-					},
+                        xclass: 'Ext.plugin.ListPaging',
+                        autoPaging: true
+                    },
                     {
-                        xclass: 'Ext.plugin.PullRefresh',           
-                        pullText: 'Pull to refresh announcements!'
-                    }                        
+                        xclass: 'Ext.plugin.PullRefresh',
+                        pullText: 'Pull down for more data!'
+                    } 
+                    /*
+                        	var items = Ext.getStore('Settings').getData().items;
+                        	Ext.each(items ,function(record, recordIndex){
+                        		if(record.get('following') === yes) {
+                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
+                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
+                        		}
+                        	});
+                        	*/
+                        //callback.call(plugin);
+                        	//plugin.setState("loaded");
+                        	//var store = plugin.list.getStore();
+                        	//store.load();
+		                    /*var store = plugin.list.getStore();
+		                            store.load(function(records, operation, success) {
+		                                callback.call(plugin);
+		                                console.log( 'me3' );
+		                            });
+		                    */
+		            /*
+					{
+                        xclass: 'MedBlogs.CustomPullRefresh',           
+                        pullText: 'Pull to refresh announcements!',
+                        onRefresh: function(callback, plugin) {
+                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+		                },
+		                loadNextPage: function(callback, plugin) {
+                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
+		                }
+                    } */
+                    /*, 
+                    {
+						xclass:'Ext.plugin.ListPaging', //'MedBlogs.CustomListPaging',
+						autoPaging: true,
+						noMoreRecordsText: 'No More Records',
+						//loadMoreCmpAdded: true,
+						clearOnPageLoad: false,
+						storeFullyLoaded: function() {
+					         var store = this.getList().getStore();
+					         return (store.getSize() < (store.currentPage * store.getPageSize()));
+					    }
+					}  */                     
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -74895,11 +75861,19 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 							'<span class="creator">{creator}</span>',
 							'<span class="date">{date}</span>',
 							'<br/><span class="description">{description}</span></div>'].join(" ")
-		
-
 			}
 		]
 	}
+	/*,
+
+	show: function(component, options){
+	    var store = Ext.getStore('Announcements');
+
+	    MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+
+	    store.load();
+	    console.log("show feed screen");
+	} */
 	
 });
 
@@ -75038,9 +76012,80 @@ Ext.define('MedBlogs.view.FeedsNavigation', {
     }
 });
 
-Ext.define('MedBlogs.view.FlashCards', {
+Ext.define('MedBlogs.store.CardCategories', {
+    extend:  Ext.data.Store ,
+
+   	config: {
+		model: 'MedBlogs.model.CardCategories',
+		data: 
+		[
+			{
+				id : '1', 
+				image: 'resources/images/ageing_and_child_development.jpg',
+				category: 'Ageing &amp; childhood<br />development'
+			},
+			{
+				id : '2', 
+				image: 'resources/images/cardiology.jpg',
+				category: 'Cardiovascular<br /> &nbsp;'
+			},
+			{
+				id : '3', 
+				image: 'resources/images/dermatology.jpg',
+				category: 'Dermatology<br /> &nbsp;'
+			},
+			{
+				id : '4', 
+				image: 'resources/images/endocrinology.jpg',
+				category: 'Endocrine<br /> &nbsp;'
+			},
+			{
+				id : '5', 
+				image: 'resources/images/ENT.jpg',
+				category: 'ENT<br /> &nbsp;'
+			},
+			{
+				id : '6', 
+				image: 'resources/images/GI.jpg',
+				category: 'Haematology<br /> &nbsp;'
+			},
+			{
+				id : '7', 
+				image: 'resources/images/musculoskeletal.jpg',
+				category: 'Musculoskeletal<br /> &nbsp;'
+			},
+			{
+				id : '8', 
+				image: 'resources/images/neurology.jpg',
+				category: 'Neurology<br /> &nbsp;'
+			},
+			{
+				id : '9', 
+				image: 'resources/images/opthalmology.jpg',
+				category: 'Opthalmology<br /> &nbsp;'
+			},
+			{
+				id : '10', 
+				image: 'resources/images/psychiatry.jpg',
+				category: 'Psychiatry<br /> &nbsp;'
+			},
+			{
+				id : '11', 
+				image: 'resources/images/renal.jpg',
+				category: 'Renal<br /> &nbsp;'
+			},
+			{
+				id : '12', 
+				image: 'resources/images/resipiratory.jpg',
+				category: 'Resipiratory<br /> &nbsp;'
+			}
+		]
+	}
+});
+
+Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 	extend:  Ext.Panel ,
-	xtype: 'flashCardScreen',
+	xtype: 'flashcardSelectScreen',
 	
 	           
 		               
@@ -75053,27 +76098,174 @@ Ext.define('MedBlogs.view.FlashCards', {
 		title: 'Flash Cards',
 		iconCls: 'tagIcon',
 		layout: 'card',
-
 		items: [
 			{
-				docked: 'top',
-				xtype: 'titlebar',
-				title: 'Flash Cards'
-			},
-			{
 	            xtype: 'dataview',
+	            id: 'categoryDataview',
 	            scrollable: true,
 	            inline: true,
 	            mode: 'MULTI',
 	            cls: 'dataview-inline',
-	            itemTpl: '<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
-	            //'<div><img src="http://try.sencha.com/scripts/trycore/icon_run.gif"/><div class="name">{first_name}<br/>{last_name}</div></div>',
-	            //'<div class="img" style="background-image: url({photo});"></div><div class="name">{first_name}<br/>{last_name}</div>',
+	            selectedCls: 'card-cat-selected',
+	            itemTpl: '<div class="card_container"><div class="img" style="background-image: url({image});"></div><div class="category_title">{category}</div></div>',
 	            store: 'CardCategories'
         	}
 		]
 	}
 	
+});
+
+Ext.define('MedBlogs.view.flashcards.Card', {
+    extend:  Ext.Container ,
+    xtype: 'cardScreen',
+
+    requires: [
+    ],
+
+    config: {
+        title: 'Flash Cards',
+        layout: {
+            type:'vbox',
+            align: 'center'
+        },
+        defaults: {
+            width:'90%'
+        },
+        scrollable:true,
+        items: [
+            {
+                xtype: 'panel',
+                id: 'cardPanel',
+                layout: {
+                    type: 'vbox',
+                    align: 'center',
+                    pack: 'center'
+                },
+                defaults: {
+                    width: '90%'
+                },
+                items: [
+                    {
+                        xtype: 'fieldset',
+                        id: 'questionPanel',
+                        title: 'Question:',
+                        items: [
+                            {
+                                id: 'question',
+                                tpl: '<div class="flashcardItem">{question}</div>'
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'button',
+                        id: 'answerButton',
+                        margin:5,
+                        text: 'Check Answer',
+                        width: '60%',
+                        align: 'center'
+                    },
+                    {
+                        xtype: 'fieldset',
+                        id: 'answerPanel',
+                        title: 'Answer:',
+                        items: [
+                            {
+                                id: 'answer',
+                                tpl: '<div class="flashcardItem">{answer}</div>'
+                            }
+                        ],
+                        hidden: true
+                    },
+                    {
+                        xtype: 'panel',
+                        id: 'buttonPanel',
+                        layout: {
+                            type: 'hbox',
+                            pack: 'center'
+                        },
+                        hidden: true,
+                        cls:'buttonFlashcards',
+                        title: 'How did you do?',
+                        items: [
+                            {
+                                xtype: 'button',
+                                id: 'yesButton',
+                                text: 'Correct',
+                                width: '40%',
+                                margin: 5
+                            },
+                            {
+                                xtype: 'button',
+                                id: 'noButton',
+                                text: 'Incorrect',
+                                width: '40%',
+                                margin: 5
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+
+        record: null
+    },
+
+    updateRecord: function(newRecord) {
+        if (newRecord) {
+            this.down('#question').setData(newRecord.data);
+            this.down('#answer').setData(newRecord.data);
+             this.down('#questionPanel').setData(newRecord.data);
+            this.down('#answerPanel').setData(newRecord.data);
+        }
+    }
+});
+
+Ext.define('MedBlogs.view.FlashCardsNavigation', {
+    extend:  Ext.navigation.View ,
+    xtype: 'flashcardsNavigation',
+
+               
+                                                
+                                       
+      
+
+    config: {
+		title: 'Flash Cards',
+		iconCls: 'tagIcon',
+		layout: 'card',
+		
+        autoDestroy: false,
+
+        navigationBar: {
+            items: [
+                {
+                    xtype: 'button',
+                    id: 'submitButton',
+                    text: 'Submit',
+                    align: 'right',
+                    hidden: true
+                },
+                {
+                    xtype: 'button',
+                    id: 'skipButton',
+                    text: 'Skip',
+                    align: 'right',
+                    hidden: true
+                },
+                {
+                    xtype: 'button',
+                    id: 'doneCardsButton',
+                    text: 'Done',
+                    align: 'left',
+                    hidden: true
+                }
+            ]
+        },
+        
+        items: [
+            { xtype: 'flashcardSelectScreen' }
+        ]
+    }
 });
 
 Ext.define('MedBlogs.store.PinnedPosts',{
@@ -75300,7 +76492,9 @@ Ext.define('MedBlogs.view.Main', {
     	                               
     	                            
                                          
-    	                           
+    	                                     
+    	                                
+    	                                        
     	                                      
                              
                                 
@@ -75323,7 +76517,7 @@ Ext.define('MedBlogs.view.Main', {
 	            xtype: 'pinnedNavigation'
             },
             {
-            	xtype: 'flashCardScreen'
+            	xtype: 'flashcardsNavigation'
             },
             {
                 xtype: 'helpScreen'
@@ -75373,13 +76567,14 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
-		
-        this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "feedsScreen") {
-
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
         } else {
+            this.getMain().getNavigationBar().leftBox.query('button')[0].hide();
             this.hideButton(this.getSettingsButton());
             this.showButton(this.getDoneButton());
         }
@@ -75388,8 +76583,11 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     onMainPop: function(view, item) {
     	// deselect any tapped announcements
 		this.getFeedList().deselectAll();
-        if (item.xtype == "settingsScreen" || item.xtype == "feedDetail") {
+        if (item.xtype == "settingsScreen") {
             this.showButton(this.getSettingsButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "feedDetail") {
+            this.hideButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());
@@ -75422,13 +76620,15 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
         	record.set('following', 'yes');
-	        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
+        	record.set('notifications', 'yes');
+        	record.save();
+	        /*Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
 		        if (choice === 'yes' || choice === 'ok') {
 			        record.set('notifications', 'yes');
 		        }
 		        
 		        record.save();
-	        });
+	        });*/
         } else {
 	        record.set('following', 'no');
 	        record.set('notifications', 'no');
@@ -75526,22 +76726,250 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
 
     config: {
         refs: {
-            flashCardScreen: 'flashCardScreen'
+            navigationContainer: 'flashcardsNavigation',
+            cardScreen: 'flashcardsNavigation cardScreen',
+            selectScreen: 'flashcardsNavigation flashcardSelectScreen',
+            selectGrid: '#categoryDataview',
+            submitButton: '#submitButton',
+            skipButton: '#skipButton',
+            doneButton: '#doneCardsButton',
+            checkButton: '#answerButton',
+            yesButton: '#yesButton',
+            noButton: '#noButton',
+            answerPanel: 'flashcardsNavigation cardScreen #cardPanel #answerPanel',
+            buttonPanel: 'flashcardsNavigation cardScreen #cardPanel #buttonPanel'
         },
 
         control: {
-            'flashCardScreen dataview': {
-                itemtap: 'onCategoryTap'
+            navigationContainer: {
+                push: 'onMainPush',
+                pop: 'onMainPop'
+            },
+        	selectGrid: {
+           		itemtap: 'onCategoryTap'
+		    },
+            submitButton: {
+                tap: 'onSubmitSelect'
+            },
+            skipButton: {
+                tap: 'onSkipSelect'
+            },
+            doneButton: {
+                tap: 'onDoneSelect'
+            },
+            checkButton:  {
+                tap: function(){
+                    this.hideButton(this.getCheckButton());
+                    this.incrementTotal();
+                    this.hideButton(this.getSkipButton());
+                    this.showButton(this.getAnswerPanel());
+                    this.showButton(this.getButtonPanel());
+                }
+            },
+            yesButton:  {
+                tap: function(){
+                    this.incrementCorrect();
+                    this.loadNewQuestion();
+                }
+            },
+            noButton:  {
+                tap: function(){
+                    this.incrementIncorrect();
+                    this.loadNewQuestion();
+                }
             }
-
         }
     },
 
+    // @private
+    $total: 0,
+    // @private
+    getTotal: function() {
+        return this.$total;
+    },
+    // @private
+    setTotal: function(value) {
+        this.$total = value;
+        //this.updateView();
+    },
+    incrementTotal: function() {
+        this.$total++;
+        //this.updateView();
+    },
+
+
+    // @private
+    $skipped: 0,
+    // @private
+    getSkipped: function() {
+        return this.$skipped;
+    },
+    // @private
+    setSkipped: function(value) {
+        this.$skipped = value;
+        //this.updateView();
+    },
+    incrementSkipped: function() {
+        this.$skipped++;
+        //this.updateView();
+    },
+
+
+    // @private
+    $correct: 0,
+    // @private
+    getCorrect: function() {
+        return this.$correct;
+    },
+    // @private
+    setCorrect: function(value) {
+        this.$correct = value;
+        //this.updateView();
+    },
+    incrementCorrect: function() {
+        this.$correct++;
+        //this.updateView();
+    },
+
+    // @private
+    $incorrect: 0,
+    // @private
+    getIncorrect: function() {
+        return this.$incorrect;
+    },
+    // @private
+    setIncorrect: function(value) {
+        this.$incorrect = value;
+        //this.updateView();
+    },
+    incrementIncorrect: function() {
+        this.$incorrect++;
+        //this.updateView();
+    },
+
+
     onCategoryTap: function(list, index, node, record) {
+    	if (typeof(this.selectedCategories) === 'undefined') {
+	    	this.selectedCategories = [];
+    	}
         // check and only show on select 
-        if(list.isSelected(record) === false)
-            Ext.Msg.confirm(record.get('first_name'), "Would you like to select " + record.get('first_name') + "?", Ext.emptyFn);
-    }
+        if(list.isSelected(record) === false) {
+            this.showButton(this.getSubmitButton());
+        	this.selectedCategories.push(record);
+        } else {
+            if(list.getSelectionCount() === 1)
+                 this.hideButton(this.getSubmitButton());
+	        Ext.Array.remove(this.selectedCategories, record);
+        }
+    },
+
+    onMainPush: function(view, item) {
+        //deselect categories
+        //this.getFeedList().deselectAll();
+        this.getNavigationContainer().getNavigationBar().leftBox.query('button')[0].hide();
+        if (item.xtype == "flashcardSelectScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "cardScreen") {
+            this.resetForm();
+            this.hideButton(this.getSubmitButton());
+            this.showButton(this.getSkipButton());
+            this.showButton(this.getDoneButton());
+        }
+    },
+
+    onMainPop: function(view, item) {
+        if (item.xtype == "flashcardSelectScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "cardScreen") {
+            Ext.getStore('FlashCards').removeAll();
+            Ext.getStore('FlashCards').sync();
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        }
+    },
+
+    onSubmitSelect: function() {
+        if (!this.cardScreen) {
+            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
+            Ext.getStore('FlashCards').load();
+            this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
+        }  else {
+            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
+            Ext.getStore('FlashCards').load();
+            this.loadNewQuestion();
+        }
+        
+        if(typeof(this.getAnswerPanel()) !== 'undefined'){
+            this.showButton(this.getAnswerPanel());
+            this.showButton(this.getButtonPanel());
+        }
+
+        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        // Push the show contact view into the navigation view
+        this.getNavigationContainer().push(this.cardScreen);
+    },
+
+    onSkipSelect: function() {
+       this.incrementTotal();
+       this.incrementSkipped();
+       this.loadNewQuestion();
+    },
+
+    onDoneSelect: function() {
+        Ext.Msg.alert("Well Done", "<p>Correct answers: " + 
+            this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
+            "Inorrect answers: " + 
+            this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
+            "Skipped questions: " + 
+            this.getSkipped() + " / " + this.getTotal() + "</p>" 
+            , Ext.emptyFn);
+        this.getNavigationContainer().pop();
+    },
+
+    showButton: function(genericButton) {
+
+        if (!genericButton.isHidden()) {
+            return;
+        }
+
+        genericButton.show();
+    },
+
+    hideButton: function(genericButton) {
+
+        if (genericButton.isHidden()) {
+            return;
+        }
+
+        genericButton.hide();
+    },
+
+    loadNewQuestion: function() {
+        Ext.getStore('FlashCards').removeAt(0);
+        Ext.getStore('FlashCards').sync();
+        if(Ext.getStore('FlashCards').getCount()===0) {
+            Ext.getStore('FlashCards').load();
+            console.log('load store again');
+        }
+        this.resetForm();
+    },
+
+    loadMoreQuestions: function() {
+    
+    },
+
+    resetForm: function() {
+        this.showButton(this.getSkipButton());
+        this.showButton(this.getCheckButton());
+        this.hideButton(this.getAnswerPanel());
+        this.hideButton(this.getButtonPanel());
+        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+    },
 });
 
 Ext.define('MedBlogs.store.FlashCards',{
@@ -75553,14 +76981,32 @@ Ext.define('MedBlogs.store.FlashCards',{
 			{
 				id : '1', 
 				category: 'anatomy',
-				question: 'Which part of the body lala ?',
-				answer: 'This part of the body lala'
+				question: 'What is important to remember about a sudden decline in health in the elderly?',
+				answer: 'Always due to disease'
 			},
 			{
 				id : '2', 
 				category: 'anatomy',
-				question: 'Which bone in the body is... ?',
-				answer: 'This bone is ...'
+				question: 'What are the key to living to the age of 100?',
+				answer: 'Non-smoker<br />Slim, tall<br />Little diabetes, dementia, heart disease<br />Practical, strong<br />Keep friends'
+			},
+			{
+				id : '3', 
+				category: 'anatomy',
+				question: 'How much walking per week confers with substantial benefits to your health 30% cardiovascular event reduction?',
+				answer: '45-75 min per week'
+			},
+			{
+				id : '4', 
+				category: 'anatomy',
+				question: 'Does a 50% calorie restricted diet make you live longer?',
+				answer: 'Proved correct in rats'
+			},
+			{
+				id : '5', 
+				category: 'anatomy',
+				question: 'Why are old people different in terms of their presentation of illness? ',
+				answer: 'May mount of an immune response<br />Blunted heart rate rise<br />Comorbid disease (eg. Heart failure, renal failure, dementia)<br />Polypharmacy (eg. Beta blockers)'
 			}
 		]
 	}
@@ -75584,7 +77030,9 @@ Ext.application({
                
                                  
                           
-                                 
+                                  
+                                    
+                                      
       
 
     controllers: [
@@ -75611,7 +77059,9 @@ Ext.application({
     
     views: [
         'Main',
-		'FlashCards',
+		'FlashCardsNavigation',
+		'flashcards.Card',
+		'flashcards.SelectScreen',
 		'PinnedPostsNavigation',
 		'pinned.PinnedPosts',
 		'pinned.PostDetail',
@@ -75643,17 +77093,18 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
-        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+        //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        //MedBlogs.util.Proxy.CardCategories.process('feed.js');
 
-        Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
+        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
+        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-        this.pushInit();
+       // this.pushInit();
+       
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
 
@@ -75674,31 +77125,6 @@ Ext.application({
                 }
             }
         );
-    },
-
-    doInsertToken:function(jsonRequestObject) {
-
-        Ext.Ajax.request({
-            url: 'getRequest.json',
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000,
-            params: Ext.Object.toQueryString(jsonRequestObject),
-
-            success: function(response, opts) {
-                if (response && response.responseText) {
-                    var jsonObject = Ext.JSON.decode(response.responseText);
-                    // handle search result
-                } else {
-                    // handle error response
-                }
-            }, failure: function(response, opts) {
-                // handle error response
-            }
-        });
     },
     
     subscriptionsInit: function (subscriptions) {
@@ -75744,17 +77170,47 @@ Ext.application({
     },
     
     pushInit: function() {
+    	var params = {	type: subscribe };
+    	if (Ext.os.is.iOS) {
+	    	params.os = 'ios';
+    	} else if (Ext.os.is.Android) {
+	    	params.os = 'android';
+    	}
+    	
 	    Ext.device.Push.register({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
+		    	params.token = token;
+		    	
 		        Ext.Msg.alert("Token", "Device token:" + token);
+		        Ext.Ajax.request({
+		            url: 'the push server url',
+		            method: 'GET',
+		            headers: {
+		                'Accept': 'application/json',
+		                'Content-Type': 'application/json'
+		            },
+		            timeout: 30000,
+		            params: Ext.Object.toQueryString(params),
+		
+		            success: function(response, opts) {
+		                if (!(response && response.responseText === 'true')) {
+		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                }
+		            }, 
+		            failure: function(response, opts) {
+		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		            }
+		        });
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		    },
 		    received: function(notification) {
-		        Ext.Msg.alert("Notification", JSON.stringify(notification), Ext.emptyFn);
-		        
+		    	var subscriptions = Ext.getStore('Subscriptions');
+				
+		    	// TODO: check the year against subscriptions
+		    	// and refresh the feeds
 		        Ext.device.Notification.show({
 				    title: 'New announcement',
 				    message: notification.alert

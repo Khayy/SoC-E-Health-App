@@ -76,13 +76,11 @@
             float: right;
             font-style: italic;
             font-size: small;
-        
         }
         
         .creator {
             font-style: italic;
             font-size: small;
-        
         }
         
         .category {
@@ -90,18 +88,50 @@
             clear: both;
             font-weight: bold;
             font-size: large;
+        }
         
+        .card_container {
+        	clear: both;
+	        /*width: 30%;*/
+        }
+        
+        .category_title {
+	        font-size: 6pt;
+	        /* text-overflow: ellipsis; */
         }
         
         .description {
             clear: both;
             font-size: normal;
+            text-overflow: ellipsis;
+        }
         
+        .x-dataview-item {
+	        background-color: #e6e6e6 !important;
+        }
+        
+        .card-cat-selected {
+	        background-color: white !important;
+        }
+        
+        #categoryDataview {
+	        text-align: center !important;
+			background-color: #f8f9f9 !important;
+        }
+
+        .flashcardItem{
+            padding: 10px 10px  !important;
+            font-size: normal  !important;
+            background-color: #e6e6e6 !important;
+        }
+
+        .buttonFlashcards{
+            margin: 0px 0px 10px 10px  !important;
         }
 
     </style>
     <!-- The line below must be kept intact for Sencha Command to build your application -->
-        <script type="text/javascript" src="cordova.js"></script>
+    <script type="text/javascript" src="cordova.js"></script> 
     <script type="text/javascript" src="PushNotification.js"></script>
      <script type="text/javascript">/**
  * Sencha Blink - Testing
