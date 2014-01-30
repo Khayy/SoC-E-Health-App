@@ -30,3 +30,4 @@ Ext.define('MedBlogs.view.pinned.PinnedPosts', {
 	}
 	
 });
+

@@ -76309,6 +76309,7 @@ Ext.define('MedBlogs.view.pinned.PinnedPosts', {
 	
 });
 
+
 Ext.define('MedBlogs.view.pinned.PostDetail', {
     extend:  Ext.Container ,
     xtype: 'postDetail',
@@ -76565,6 +76566,18 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         }
     },
 
+	launch: function () {
+		var subscriptions = Ext.getStore('Subscriptions');
+		subscriptions.load();
+		var result = subscriptions.find('following', 'yes');
+		if (result === -1) {
+			if (!this.settingsScreen) {
+           		this.settingsScreen = Ext.create('MedBlogs.view.feeds.Settings');
+		   	}
+			this.getMain().push(this.settingsScreen);
+		}
+	},
+
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
         if (item.xtype == "feedsScreen") {
@@ -76587,7 +76600,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else if (item.xtype == "feedDetail") {
-            this.hideButton(this.getSettingsButton());
+            //this.hideButton(this.getSettingsButton());
+            this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());
@@ -77089,8 +77103,6 @@ Ext.application({
         '1536x2008': 'resources/startup/1536x2008.png',
         '1496x2048': 'resources/startup/1496x2048.png'
     },
-    
-    launchView: 'Announcements',
 
     launch: function() {
         //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
@@ -77103,7 +77115,7 @@ Ext.application({
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-       // this.pushInit();
+        this.pushInit();
        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
@@ -77164,25 +77176,22 @@ Ext.application({
 			});
 			
 			subscriptions.sync();
-			
-			this.launchView = 'Subscriptions';
 	    }
     },
     
     pushInit: function() {
-    	var params = {	type: subscribe };
+    	var params = {	type: 'subscribe' };
     	if (Ext.os.is.iOS) {
-	    	params.os = 'ios';
+	    	params.platform = 'ios';
     	} else if (Ext.os.is.Android) {
-	    	params.os = 'android';
+	    	params.platform = 'android';
     	}
     	
 	    Ext.device.Push.register({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		    	
-		        Ext.Msg.alert("Token", "Device token:" + token);
+		        /*Ext.Msg.alert("Token", "Device token:" + token);
 		        Ext.Ajax.request({
 		            url: 'the push server url',
 		            method: 'GET',
@@ -77201,20 +77210,24 @@ Ext.application({
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
-		        });
+		        });*/
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		    },
 		    received: function(notification) {
-		    	var subscriptions = Ext.getStore('Subscriptions');
-				
-		    	// TODO: check the year against subscriptions
-		    	// and refresh the feeds
-		        Ext.device.Notification.show({
-				    title: 'New announcement',
-				    message: notification.alert
-				});
+		    	//var subscriptions = Ext.getStore('Subscriptions');
+				//subscriptions.filter([{property: "following", value: "yes"}]);
+				//sub
+				/*Ext.Array.each(subscriptions, function (item, index) {
+					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {
+				        Ext.device.Notification.show({
+						    title: 'New announcement',
+						    message: notification.alert.title
+						});
+					}
+				});*/
+				// TODO refresh feeds
 		    }
 		});
     }

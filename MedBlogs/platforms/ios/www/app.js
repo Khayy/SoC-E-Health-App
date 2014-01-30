@@ -76309,6 +76309,7 @@ Ext.define('MedBlogs.view.pinned.PinnedPosts', {
 	
 });
 
+
 Ext.define('MedBlogs.view.pinned.PostDetail', {
     extend:  Ext.Container ,
     xtype: 'postDetail',
@@ -76587,7 +76588,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else if (item.xtype == "feedDetail") {
-            this.hideButton(this.getSettingsButton());
+            //this.hideButton(this.getSettingsButton());
+            this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());
@@ -77128,6 +77130,19 @@ Ext.application({
     },
     
     subscriptionsInit: function (subscriptions) {
+    /// fake a pinned post... take out !!!!
+    var posts = Ext.getStore('PinnedPosts');
+    posts.load();
+    if (posts.getCount() < 1) {
+    	posts.add({
+				category: 'Year 3',
+				title: 'CAP Test Tomorrow',
+				creator: 'Alison Grey',
+				date: '16/01/2014',
+				description: 'Reminder: The year 3 CAP test is tomorrow.'
+			});
+		posts.sync();
+    }
    		// load and setup subscriptions from local storage
 		var subscriptions = Ext.getStore('Subscriptions');
 		subscriptions.load();
@@ -77181,8 +77196,8 @@ Ext.application({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		    	
-		        Ext.Msg.alert("Token", "Device token:" + token);
+		    	console.log(token);
+		        /*Ext.Msg.alert("Token", "Device token:" + token);
 		        Ext.Ajax.request({
 		            url: 'the push server url',
 		            method: 'GET',
@@ -77201,7 +77216,7 @@ Ext.application({
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
-		        });
+		        });*/
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);

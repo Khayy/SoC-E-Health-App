@@ -37,6 +37,18 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         }
     },
 
+	launch: function () {
+		var subscriptions = Ext.getStore('Subscriptions');
+		subscriptions.load();
+		var result = subscriptions.find('following', 'yes');
+		if (result === -1) {
+			if (!this.settingsScreen) {
+           		this.settingsScreen = Ext.create('MedBlogs.view.feeds.Settings');
+		   	}
+			this.getMain().push(this.settingsScreen);
+		}
+	},
+
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
         if (item.xtype == "feedsScreen") {
@@ -59,7 +71,8 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
             this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else if (item.xtype == "feedDetail") {
-            this.hideButton(this.getSettingsButton());
+            //this.hideButton(this.getSettingsButton());
+            this.showButton(this.getSettingsButton());
             this.hideButton(this.getDoneButton());
         } else {
             this.hideButton(this.getSettingsButton());
