@@ -195,14 +195,14 @@ Ext.application({
 		    	//var subscriptions = Ext.getStore('Subscriptions');
 				//subscriptions.filter([{property: "following", value: "yes"}]);
 				//sub
-				/*Ext.Array.each(subscriptions, function (item, index) {
-					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
+				//Ext.Array.each(subscriptions, function (item, index) {
+					//if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
 				        Ext.device.Notification.show({
 						    title: 'New announcement',
 						    message: notification.alert.title
 						});
-				/*	}
-				});*/
+					//}
+				//});*/
 				// TODO refresh feeds
 		    }
 		});

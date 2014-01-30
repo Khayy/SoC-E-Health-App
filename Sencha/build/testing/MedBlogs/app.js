@@ -75764,18 +75764,28 @@ Ext.define('MedBlogs.store.Announcements', {
         ,
         proxy: {
             type: 'jsonp',
-            url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
+            url: 'http://137.117.146.199:8080/E-Health-Server/feeds',
             startParam:'offset',
             limitParam:'limit',
             reader: {
                 type: 'json',
                 rootProperty: 'items'
             },
+            extraParams: {
+                years : this.getStore().getYearsToPass()
+            },
             afterRequest: function(request, success){
                 console.log("success ");
                 console.log("success " + success);
             }
-        }
+        },
+        getYearsToPass : null
+    },
+
+     getYearsToPass: function(){
+        var store = Ext.getStore('Subscriptions');
+        store.load();
+        return store.getYears();
     }
 });
 
@@ -75922,7 +75932,15 @@ Ext.define('MedBlogs.view.feeds.FeedDetail', {
 Ext.define('MedBlogs.store.Subscriptions',{
 	extend:  Ext.data.Store ,
 	config: {
-		model: 'MedBlogs.model.Subscriptions'
+		model: 'MedBlogs.model.Subscriptions',
+		getYears: function(){
+			var years = [];
+			Ext.Array.each(this.getData().items, function(item, index){
+				if(item.following === 'yes')
+					years.push(item.name.replace('Year ', ''));
+			});
+			return years;
+		}
 	}
 });
 
@@ -77223,14 +77241,14 @@ Ext.application({
 		    	//var subscriptions = Ext.getStore('Subscriptions');
 				//subscriptions.filter([{property: "following", value: "yes"}]);
 				//sub
-				/*Ext.Array.each(subscriptions, function (item, index) {
-					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
+				//Ext.Array.each(subscriptions, function (item, index) {
+					//if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
 				        Ext.device.Notification.show({
 						    title: 'New announcement',
 						    message: notification.alert.title
 						});
-				/*	}
-				});*/
+					//}
+				//});*/
 				// TODO refresh feeds
 		    }
 		});
@@ -77238,5 +77256,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require /Users/tobyp/Desktop/Project Repositories /SoC-E-Health-App/Sencha/app.js
+// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
 

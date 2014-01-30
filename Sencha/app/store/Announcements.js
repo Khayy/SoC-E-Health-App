@@ -66,17 +66,27 @@ Ext.define('MedBlogs.store.Announcements', {
         ,
         proxy: {
             type: 'jsonp',
-            url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
+            url: 'http://137.117.146.199:8080/E-Health-Server/feeds',
             startParam:'offset',
             limitParam:'limit',
             reader: {
                 type: 'json',
                 rootProperty: 'items'
             },
+            extraParams: {
+                years : this.getStore().getYearsToPass()
+            },
             afterRequest: function(request, success){
                 console.log("success ");
                 console.log("success " + success);
             }
-        }
+        },
+        getYearsToPass : null
+    },
+
+     getYearsToPass: function(){
+        var store = Ext.getStore('Subscriptions');
+        store.load();
+        return store.getYears();
     }
 });
