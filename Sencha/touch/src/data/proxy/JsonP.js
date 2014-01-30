@@ -223,10 +223,11 @@ Ext.define('Ext.data.proxy.JsonP', {
      */
     createRequestCallback: function(request, operation, callback, scope) {
         var me = this;
-
         return function(success, response, errorType) {
             delete me.lastRequest;
-            me.processResponse(success, operation, request, response, callback, scope);
+            console.log("request callback in proxy");
+            var lal = me.processResponse(success, operation, request, response, callback, scope);
+            return lal;
         };
     },
 

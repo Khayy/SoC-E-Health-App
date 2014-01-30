@@ -262,6 +262,7 @@ Ext.define('Ext.data.proxy.Server', {
             callback.call(scope || me, operation);
         }
 
+        console.log("request callback in server proxy");
         me.afterRequest(request, success);
     },
 

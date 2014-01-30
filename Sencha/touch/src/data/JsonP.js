@@ -267,6 +267,7 @@ Ext.define('Ext.data.JsonP', {
         } else {
             Ext.callback(request.success, request.scope, [result, request]);
         }
+        console.log("JSONp data callbacks");
         Ext.callback(request.callback, request.scope, [success, result, request.errorType, request]);
     },
 

@@ -17,7 +17,6 @@ Ext.Loader.addClassPathMappings({
   "Ext.device.sqlite.SQLResultSetRowList": "touch/src/device/sqlite/Sencha.js",
   "Ext.device.sqlite.SQLTransaction": "touch/src/device/sqlite/Sencha.js",
   "MedBlogs": "app",
-  "MedBlogs.util": "app",
   "MyApp": "app"
 });
 Ext.ClassManager.addNameAlternateMappings({
@@ -673,8 +672,6 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.store.HelpStore": [],
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
-  "MedBlogs.util.Proxy.Announcements": [],
-  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [],
   "MedBlogs.view.FlashCardsNavigation": [],
   "MedBlogs.view.Help": [],
@@ -1445,8 +1442,6 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.store.HelpStore": [],
   "MedBlogs.store.PinnedPosts": [],
   "MedBlogs.store.Subscriptions": [],
-  "MedBlogs.util.Proxy.Announcements": [],
-  "MedBlogs.util.Proxy.CardCategories": [],
   "MedBlogs.view.FeedsNavigation": [
     "widget.feedsNavigation"
   ],
@@ -1471,7 +1466,9 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.view.feeds.Settings": [
     "widget.settingsScreen"
   ],
-  "MedBlogs.view.flashcards.Card": [],
+  "MedBlogs.view.flashcards.Card": [
+    "widget.cardScreen"
+  ],
   "MedBlogs.view.flashcards.SelectScreen": [
     "widget.flashcardSelectScreen"
   ],

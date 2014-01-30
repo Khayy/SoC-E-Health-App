@@ -4,5 +4,7 @@ Ext.define('MyApp.proxy.AnnouncementProxy', {
     // Set your proxy alias
     alias: 'proxy.announcementproxy',
 
-    
+    config:[
+        
+    ]
 });

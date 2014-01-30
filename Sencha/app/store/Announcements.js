@@ -44,6 +44,7 @@
     }
 });
 */
+
 Ext.define('MedBlogs.store.Announcements', {
     extend: 'Ext.data.Store',
 
@@ -55,13 +56,14 @@ Ext.define('MedBlogs.store.Announcements', {
     config: {
         model: 'MedBlogs.model.Announcements',
         pageSize: 10,
-        //autoLoad:true,
+        autoLoad:true,
         //remoteFilter: true,
         //remoteSort: true,
         sorters:[{
             property:'pubDate',
             direction:'DESC'
-        }],
+        }]
+        ,
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
@@ -70,6 +72,10 @@ Ext.define('MedBlogs.store.Announcements', {
             reader: {
                 type: 'json',
                 rootProperty: 'items'
+            },
+            afterRequest: function(request, success){
+                console.log("success ");
+                console.log("success " + success);
             }
         }
     }

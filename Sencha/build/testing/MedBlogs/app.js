@@ -48549,6 +48549,7 @@ Ext.define('Ext.data.proxy.Server', {
             callback.call(scope || me, operation);
         }
 
+        console.log("request callback in server proxy");
         me.afterRequest(request, success);
     },
 
@@ -55998,6 +55999,7 @@ Ext.define('Ext.data.JsonP', {
         } else {
             Ext.callback(request.success, request.scope, [result, request]);
         }
+        console.log("JSONp data callbacks");
         Ext.callback(request.callback, request.scope, [success, result, request.errorType, request]);
     },
 
@@ -58199,10 +58201,11 @@ Ext.define('Ext.data.proxy.JsonP', {
      */
     createRequestCallback: function(request, operation, callback, scope) {
         var me = this;
-
         return function(success, response, errorType) {
             delete me.lastRequest;
-            me.processResponse(success, operation, request, response, callback, scope);
+            console.log("request callback in proxy");
+            var lal = me.processResponse(success, operation, request, response, callback, scope);
+            return lal;
         };
     },
 
@@ -68268,6 +68271,205 @@ Ext.define('Ext.event.recognizer.Tap', {
 });
 
 /**
+ * @aside guide forms
+ * @aside example forms
+ * @aside example forms-toolbars
+ *
+ * A FieldSet is a great way to visually separate elements of a form. It's normally used when you have a form with
+ * fields that can be divided into groups - for example a customer's billing details in one fieldset and their shipping
+ * address in another. A fieldset can be used inside a form or on its own elsewhere in your app. Fieldsets can
+ * optionally have a title at the top and instructions at the bottom. Here's how we might create a FieldSet inside a
+ * form:
+ *
+ *     @example
+ *     Ext.create('Ext.form.Panel', {
+ *         fullscreen: true,
+ *         items: [
+ *             {
+ *                 xtype: 'fieldset',
+ *                 title: 'About You',
+ *                 instructions: 'Tell us all about yourself',
+ *                 items: [
+ *                     {
+ *                         xtype: 'textfield',
+ *                         name : 'firstName',
+ *                         label: 'First Name'
+ *                     },
+ *                     {
+ *                         xtype: 'textfield',
+ *                         name : 'lastName',
+ *                         label: 'Last Name'
+ *                     }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *
+ * Above we created a {@link Ext.form.Panel form} with a fieldset that contains two text fields. In this case, all
+ * of the form fields are in the same fieldset, but for longer forms we may choose to use multiple fieldsets. We also
+ * configured a {@link #title} and {@link #instructions} to give the user more information on filling out the form if
+ * required.
+ */
+Ext.define('Ext.form.FieldSet', {
+    extend  :  Ext.Container ,
+    alias   : 'widget.fieldset',
+                            
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'form-fieldset',
+
+        /**
+         * @cfg {String} title
+         * Optional fieldset title, rendered just above the grouped fields.
+         *
+         * ## Example
+         *
+         *     Ext.create('Ext.form.Fieldset', {
+         *         fullscreen: true,
+         *
+         *         title: 'Login',
+         *
+         *         items: [{
+         *             xtype: 'textfield',
+         *             label: 'Email'
+         *         }]
+         *     });
+         * 
+         * @accessor
+         */
+        title: null,
+
+        /**
+         * @cfg {String} instructions
+         * Optional fieldset instructions, rendered just below the grouped fields.
+         *
+         * ## Example
+         *
+         *     Ext.create('Ext.form.Fieldset', {
+         *         fullscreen: true,
+         *
+         *         instructions: 'Please enter your email address.',
+         *
+         *         items: [{
+         *             xtype: 'textfield',
+         *             label: 'Email'
+         *         }]
+         *     });
+         * 
+         * @accessor
+         */
+        instructions: null
+    },
+
+    // @private
+    applyTitle: function(title) {
+        if (typeof title == 'string') {
+            title = {title: title};
+        }
+
+        Ext.applyIf(title, {
+            docked : 'top',
+            baseCls: this.getBaseCls() + '-title'
+        });
+
+        return Ext.factory(title, Ext.Title, this._title);
+    },
+
+    // @private
+    updateTitle: function(newTitle, oldTitle) {
+        if (newTitle) {
+            this.add(newTitle);
+        }
+        if (oldTitle) {
+            this.remove(oldTitle);
+        }
+    },
+
+    // @private
+    getTitle: function() {
+        var title = this._title;
+
+        if (title && title instanceof Ext.Title) {
+            return title.getTitle();
+        }
+
+        return title;
+    },
+
+    // @private
+    applyInstructions: function(instructions) {
+        if (typeof instructions == 'string') {
+            instructions = {title: instructions};
+        }
+
+        Ext.applyIf(instructions, {
+            docked : 'bottom',
+            baseCls: this.getBaseCls() + '-instructions'
+        });
+
+        return Ext.factory(instructions, Ext.Title, this._instructions);
+    },
+
+    // @private
+    updateInstructions: function(newInstructions, oldInstructions) {
+        if (newInstructions) {
+            this.add(newInstructions);
+        }
+        if (oldInstructions) {
+            this.remove(oldInstructions);
+        }
+    },
+
+    // @private
+    getInstructions: function() {
+        var instructions = this._instructions;
+
+        if (instructions && instructions instanceof Ext.Title) {
+            return instructions.getTitle();
+        }
+
+        return instructions;
+    },
+
+    /**
+     * A convenient method to disable all fields in this FieldSet
+     * @return {Ext.form.FieldSet} This FieldSet
+     */
+     
+    doSetDisabled: function(newDisabled) {
+        this.getFieldsAsArray().forEach(function(field) {
+            field.setDisabled(newDisabled);
+        });
+
+        return this;
+    },
+
+    /**
+     * @private
+     */
+    getFieldsAsArray: function() {
+        var fields = [],
+            getFieldsFrom = function(item) {
+                if (item.isField) {
+                    fields.push(item);
+                }
+
+                if (item.isContainer) {
+                    item.getItems().each(getFieldsFrom);
+                }
+            };
+
+        this.getItems().each(getFieldsFrom);
+
+        return fields;
+    }
+});
+
+/**
  * @private
  */
 Ext.define('Ext.fx.runner.Css', {
@@ -70463,787 +70665,6 @@ Ext.define('Ext.navigation.View', {
     reset: function() {
         return this.pop(this.getInnerItems().length);
     }
-});
-
-/**
- * Adds a Load More button at the bottom of the list. When the user presses this button,
- * the next page of data will be loaded into the store and appended to the List.
- *
- * By specifying `{@link #autoPaging}: true`, an 'infinite scroll' effect can be achieved,
- * i.e., the next page of content will load automatically when the user scrolls to the
- * bottom of the list.
- *
- * ## Example
- *
- *     Ext.create('Ext.dataview.List', {
- *
- *         store: Ext.create('TweetStore'),
- *
- *         plugins: [
- *             {
- *                 xclass: 'Ext.plugin.ListPaging',
- *                 autoPaging: true
- *             }
- *         ],
- *
- *         itemTpl: [
- *             '<img src="{profile_image_url}" />',
- *             '<div class="tweet">{text}</div>'
- *         ]
- *     });
- */
-Ext.define('Ext.plugin.ListPaging', {
-    extend:  Ext.Component ,
-    alias: 'plugin.listpaging',
-
-    config: {
-        /**
-         * @cfg {Boolean} autoPaging
-         * True to automatically load the next page when you scroll to the bottom of the list.
-         */
-        autoPaging: false,
-
-        /**
-         * @cfg {String} loadMoreText The text used as the label of the Load More button.
-         */
-        loadMoreText: 'Load More...',
-
-        /**
-         * @cfg {String} noMoreRecordsText The text used as the label of the Load More button when the Store's
-         * {@link Ext.data.Store#totalCount totalCount} indicates that all of the records available on the server are
-         * already loaded
-         */
-        noMoreRecordsText: 'No More Records',
-
-        /**
-         * @private
-         * @cfg {String} loadTpl The template used to render the load more text
-         */
-        loadTpl: [
-            '<div class="{cssPrefix}loading-spinner" style="font-size: 180%; margin: 10px auto;">',
-                 '<span class="{cssPrefix}loading-top"></span>',
-                 '<span class="{cssPrefix}loading-right"></span>',
-                 '<span class="{cssPrefix}loading-bottom"></span>',
-                 '<span class="{cssPrefix}loading-left"></span>',
-            '</div>',
-            '<div class="{cssPrefix}list-paging-msg">{message}</div>'
-        ].join(''),
-
-        /**
-         * @cfg {Object} loadMoreCmp
-         * @private
-         */
-        loadMoreCmp: {
-            xtype: 'component',
-            baseCls: Ext.baseCSSPrefix + 'list-paging',
-            scrollDock: 'bottom',
-            hidden: true
-        },
-
-        /**
-         * @private
-         * @cfg {Boolean} loadMoreCmpAdded Indicates whether or not the load more component has been added to the List
-         * yet.
-         */
-        loadMoreCmpAdded: false,
-
-        /**
-         * @private
-         * @cfg {String} loadingCls The CSS class that is added to the {@link #loadMoreCmp} while the Store is loading
-         */
-        loadingCls: Ext.baseCSSPrefix + 'loading',
-
-        /**
-         * @private
-         * @cfg {Ext.List} list Local reference to the List this plugin is bound to
-         */
-        list: null,
-
-        /**
-         * @private
-         * @cfg {Ext.scroll.Scroller} scroller Local reference to the List's Scroller
-         */
-        scroller: null,
-
-        /**
-         * @private
-         * @cfg {Boolean} loading True if the plugin has initiated a Store load that has not yet completed
-         */
-        loading: false
-    },
-
-    /**
-     * @private
-     * Sets up all of the references the plugin needs
-     */
-    init: function(list) {
-        var scroller = list.getScrollable().getScroller(),
-            store    = list.getStore();
-
-        this.setList(list);
-        this.setScroller(scroller);
-        this.bindStore(list.getStore());
-
-        this.addLoadMoreCmp();
-
-        // The List's Store could change at any time so make sure we are informed when that happens
-        list.updateStore = Ext.Function.createInterceptor(list.updateStore, this.bindStore, this);
-
-        if (this.getAutoPaging()) {
-            scroller.on({
-                scrollend: this.onScrollEnd,
-                scope: this
-            });
-        }
-    },
-
-    /**
-     * @private
-     */
-    bindStore: function(newStore, oldStore) {
-        if (oldStore) {
-            oldStore.un({
-                beforeload: this.onStoreBeforeLoad,
-                load: this.onStoreLoad,
-                filter: this.onFilter,
-                scope: this
-            });
-        }
-
-        if (newStore) {
-            newStore.on({
-                beforeload: this.onStoreBeforeLoad,
-                load: this.onStoreLoad,
-                filter: this.onFilter,
-                scope: this
-            });
-        }
-    },
-
-    /**
-     * @private
-     * Removes the List/DataView's loading mask because we show our own in the plugin. The logic here disables the
-     * loading mask immediately if the store is autoloading. If it's not autoloading, allow the mask to show the first
-     * time the Store loads, then disable it and use the plugin's loading spinner.
-     * @param {Ext.data.Store} store The store that is bound to the DataView
-     */
-    disableDataViewMask: function() {
-        var list = this.getList();
-            this._listMask = list.getLoadingText();
-
-        list.setLoadingText(null);
-    },
-
-    enableDataViewMask: function() {
-        if(this._listMask) {
-            var list = this.getList();
-            list.setLoadingText(this._listMask);
-            delete this._listMask;
-        }
-    },
-
-    /**
-     * @private
-     */
-    applyLoadTpl: function(config) {
-        return (Ext.isObject(config) && config.isTemplate) ? config : new Ext.XTemplate(config);
-    },
-
-    /**
-     * @private
-     */
-    applyLoadMoreCmp: function(config) {
-        config = Ext.merge(config, {
-            html: this.getLoadTpl().apply({
-                cssPrefix: Ext.baseCSSPrefix,
-                message: this.getLoadMoreText()
-            }),
-            scrollDock: 'bottom',
-            listeners: {
-                tap: {
-                    fn: this.loadNextPage,
-                    scope: this,
-                    element: 'element'
-                }
-            }
-        });
-
-        return Ext.factory(config, Ext.Component, this.getLoadMoreCmp());
-    },
-
-    /**
-     * @private
-     * If we're using autoPaging and detect that the user has scrolled to the bottom, kick off loading of the next page
-     */
-    onScrollEnd: function(scroller, x, y) {
-        var list = this.getList();
-
-        if (!this.getLoading() && y >= scroller.maxPosition.y) {
-            this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
-            list.setScrollToTopOnRefresh(false);
-
-            this.loadNextPage();
-        }
-    },
-
-    /**
-     * @private
-     * Makes sure we add/remove the loading CSS class while the Store is loading
-     */
-    updateLoading: function(isLoading) {
-        var loadMoreCmp = this.getLoadMoreCmp(),
-            loadMoreCls = this.getLoadingCls();
-
-        if (isLoading) {
-            loadMoreCmp.addCls(loadMoreCls);
-        } else {
-            loadMoreCmp.removeCls(loadMoreCls);
-        }
-    },
-
-    /**
-     * @private
-     * If the Store is just about to load but it's currently empty, we hide the load more button because this is
-     * usually an outcome of setting a new Store on the List so we don't want the load more button to flash while
-     * the new Store loads
-     */
-    onStoreBeforeLoad: function(store) {
-        if (store.getCount() === 0) {
-            this.getLoadMoreCmp().hide();
-        }
-    },
-
-    /**
-     * @private
-     */
-    onStoreLoad: function(store) {
-        var loadCmp  = this.getLoadMoreCmp(),
-            template = this.getLoadTpl(),
-            message  = this.storeFullyLoaded() ? this.getNoMoreRecordsText() : this.getLoadMoreText();
-
-        if (store.getCount()) {
-            loadCmp.show();
-        }
-        this.setLoading(false);
-
-        //if we've reached the end of the data set, switch to the noMoreRecordsText
-        loadCmp.setHtml(template.apply({
-            cssPrefix: Ext.baseCSSPrefix,
-            message: message
-        }));
-
-        if (this.currentScrollToTopOnRefresh !== undefined) {
-            this.getList().setScrollToTopOnRefresh(this.currentScrollToTopOnRefresh);
-            delete this.currentScrollToTopOnRefresh;
-        }
-
-        this.enableDataViewMask();
-    },
-
-    onFilter: function(store) {
-        if (store.getCount() === 0) {
-            this.getLoadMoreCmp().hide();
-        }else {
-            this.getLoadMoreCmp().show();
-        }
-    },
-
-    /**
-     * @private
-     * Because the attached List's inner list element is rendered after our init function is called,
-     * we need to dynamically add the loadMoreCmp later. This does this once and caches the result.
-     */
-    addLoadMoreCmp: function() {
-        var list = this.getList(),
-            cmp  = this.getLoadMoreCmp();
-
-        if (!this.getLoadMoreCmpAdded()) {
-            list.add(cmp);
-
-            /**
-             * @event loadmorecmpadded  Fired when the Load More component is added to the list. Fires on the List.
-             * @param {Ext.plugin.ListPaging} this The list paging plugin
-             * @param {Ext.List} list The list
-             */
-            list.fireEvent('loadmorecmpadded', this, list);
-            this.setLoadMoreCmpAdded(true);
-        }
-
-        return cmp;
-    },
-
-    /**
-     * @private
-     * Returns true if the Store is detected as being fully loaded, or the server did not return a total count, which
-     * means we're in 'infinite' mode
-     * @return {Boolean}
-     */
-    storeFullyLoaded: function() {
-        var store = this.getList().getStore(),
-            total = store.getTotalCount();
-
-        return total !== null ? store.getTotalCount() <= (store.currentPage * store.getPageSize()) : false;
-    },
-
-    /**
-     * @private
-     */
-    loadNextPage: function() {
-        var me = this;
-        if (!me.storeFullyLoaded()) {
-            me.disableDataViewMask();
-            me.setLoading(true);
-            me.getList().getStore().nextPage({ addRecords: true });
-        }
-    }
-});
-
-/**
- * This plugin adds pull to refresh functionality to the List.
- *
- * ## Example
- *
- *     @example
- *     var store = Ext.create('Ext.data.Store', {
- *         fields: ['name', 'img', 'text'],
- *         data: [
- *             {
- *                 name: 'rdougan',
- *                 img: 'http://a0.twimg.com/profile_images/1261180556/171265_10150129602722922_727937921_7778997_8387690_o_reasonably_small.jpg',
- *                 text: 'JavaScript development'
- *             }
- *         ]
- *     });
- *
- *     Ext.create('Ext.dataview.List', {
- *         fullscreen: true,
- *
- *         store: store,
- *
- *         plugins: [
- *             {
- *                 xclass: 'Ext.plugin.PullRefresh',
- *                 pullText: 'Pull down for more new Tweets!'
- *             }
- *         ],
- *
- *         itemTpl: [
- *             '<img src="{img}" alt="{name} photo" />',
- *             '<div class="tweet"><b>{name}:</b> {text}</div>'
- *         ]
- *     });
- */
-Ext.define('Ext.plugin.PullRefresh', {
-    extend:  Ext.Component ,
-    alias: 'plugin.pullrefresh',
-                                 
-
-    config: {
-        /**
-         * @cfg {Ext.dataview.List} list
-         * The list to which this PullRefresh plugin is connected.
-         * This will usually by set automatically when configuring the list with this plugin.
-         * @accessor
-         */
-        list: null,
-
-        /**
-         * @cfg {String} pullText The text that will be shown while you are pulling down.
-         * @accessor
-         */
-        pullText: 'Pull down to refresh...',
-
-        /**
-         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
-         * @accessor
-         */
-        releaseText: 'Release to refresh...',
-
-        /**
-         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
-         * @accessor
-         */
-        loadingText: 'Loading...',
-
-        /**
-         * @cfg {String} loadedText The text that will be when data has been loaded.
-         * @accessor
-         */
-        loadedText: 'Loaded.',
-
-        /**
-         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
-         * @accessor
-         */
-        lastUpdatedText: 'Last Updated:&nbsp;',
-
-        /**
-         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
-         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
-         * that will be loading and have unspecified heights.
-         */
-        scrollerAutoRefresh: false,
-
-        /**
-         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
-         * If false call {@link #snapBack}() to manually snap the pulldown back.
-         */
-        autoSnapBack: true,
-
-        /**
-         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
-         * @accessor
-         */
-        snappingAnimationDuration: 300,
-        /**
-         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
-         */
-        lastUpdatedDateFormat: 'm/d/Y h:iA',
-
-        /**
-         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
-         */
-        overpullSnapBackDuration: 300,
-
-        /**
-         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
-         * Will be passed a config object with properties state, message and updated
-         *
-         * @accessor
-         */
-        pullTpl: [
-            '<div class="x-list-pullrefresh-arrow"></div>',
-            '<div class="x-loading-spinner">',
-                '<span class="x-loading-top"></span>',
-                '<span class="x-loading-right"></span>',
-                '<span class="x-loading-bottom"></span>',
-                '<span class="x-loading-left"></span>',
-            '</div>',
-            '<div class="x-list-pullrefresh-wrap">',
-                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
-                '<div class="x-list-pullrefresh-updated">{updated}</div>',
-            '</div>'
-        ].join(''),
-
-        translatable: true
-    },
-
-    // @private
-    $state: "pull",
-    // @private
-    getState: function() {
-        return this.$state
-    },
-    // @private
-    setState: function(value) {
-        this.$state = value;
-        this.updateView();
-    },
-    // @private
-    $isSnappingBack: false,
-    // @private
-    getIsSnappingBack: function() {
-        return this.$isSnappingBack;
-    },
-    // @private
-    setIsSnappingBack: function(value) {
-        this.$isSnappingBack = value;
-    },
-
-    // @private
-    init: function(list) {
-        var me = this;
-
-        me.setList(list);
-        me.initScrollable();
-    },
-
-    getElementConfig: function() {
-        return {
-            reference: 'element',
-            classList: ['x-unsized'],
-            children: [
-                {
-                    reference: 'innerElement',
-                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
-                }
-            ]
-        };
-    },
-
-    // @private
-    initScrollable: function() {
-        var me = this,
-            list = me.getList(),
-            scrollable = list.getScrollable(),
-            scroller;
-
-        if (!scrollable) {
-            return;
-        }
-
-        scroller = scrollable.getScroller();
-        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
-
-        me.lastUpdated = new Date();
-
-        list.insert(0, me);
-
-        scroller.on({
-            scroll: me.onScrollChange,
-            scope: me
-        });
-
-        this.updateView();
-    },
-
-    // @private
-    applyPullTpl: function(config) {
-        if (config instanceof Ext.XTemplate) {
-            return config
-        } else {
-            return new Ext.XTemplate(config);
-        }
-    },
-
-    // @private
-    updateList: function(newList, oldList) {
-        var me = this;
-
-        if (newList && newList != oldList) {
-            newList.on({
-                order: 'after',
-                scrollablechange: me.initScrollable,
-                scope: me
-            });
-        } else if (oldList) {
-            oldList.un({
-                order: 'after',
-                scrollablechange: me.initScrollable,
-                scope: me
-            });
-        }
-    },
-
-    // @private
-    getPullHeight: function() {
-       return this.innerElement.getHeight();
-    },
-
-    /**
-     * @private
-     * Attempts to load the newest posts via the attached List's Store's Proxy
-     */
-    fetchLatest: function() {
-        var store = this.getList().getStore(),
-            proxy = store.getProxy(),
-            operation;
-
-        operation = Ext.create('Ext.data.Operation', {
-            page: 1,
-            start: 0,
-            model: store.getModel(),
-            limit: store.getPageSize(),
-            action: 'read',
-            sorters: store.getSorters(),
-            filters: store.getRemoteFilter() ? store.getFilters() : []
-        });
-
-        proxy.read(operation, this.onLatestFetched, this);
-    },
-
-    /**
-     * @private
-     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
-     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
-     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
-     * timeline between the new and the old records.
-     */
-    onLatestFetched: function(operation) {
-        var store = this.getList().getStore(),
-            oldRecords = store.getData(),
-            newRecords = operation.getRecords(),
-            length = newRecords.length,
-            toInsert = [],
-            newRecord, oldRecord, i;
-
-        for (i = 0; i < length; i++) {
-            newRecord = newRecords[i];
-            oldRecord = oldRecords.getByKey(newRecord.getId());
-
-            if (oldRecord) {
-                oldRecord.set(newRecord.getData());
-            } else {
-                toInsert.push(newRecord);
-            }
-
-            oldRecord = undefined;
-        }
-
-        store.insert(0, toInsert);
-        this.setState("loaded");
-        this.fireEvent('latestfetched', this, toInsert);
-        if (this.getAutoSnapBack()) {
-            this.snapBack();
-        }
-    },
-
-    /**
-     * Snaps the List back to the top after a pullrefresh is complete
-     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
-     */
-    snapBack: function(force) {
-        if(this.getState() !== "loaded" && force !== true) return;
-
-        var list = this.getList(),
-            scroller = list.getScrollable().getScroller();
-
-        scroller.refresh();
-        scroller.minPosition.y = 0;
-
-        scroller.on({
-            scrollend: this.onSnapBackEnd,
-            single: true,
-            scope: this
-        });
-
-        this.setIsSnappingBack(true);
-        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
-    },
-
-    /**
-     * @private
-     * Called when PullRefresh has been snapped back to the top
-     */
-    onSnapBackEnd: function() {
-        this.setState("pull");
-        this.setIsSnappingBack(false);
-    },
-
-    /**
-     * @private
-     * Called when the Scroller updates from the list
-     * @param scroller
-     * @param x
-     * @param y
-     */
-    onScrollChange: function(scroller, x, y) {
-        if (y <= 0) {
-            var pullHeight = this.getPullHeight(),
-                isSnappingBack = this.getIsSnappingBack();
-
-            if(this.getState() === "loaded" && !isSnappingBack) {
-                this.snapBack();
-            }
-
-            if (this.getState() !== "loading" && this.getState() !=="loaded") {
-                if (-y >= pullHeight + 10) {
-                    this.setState("release");
-                    scroller.getContainer().onBefore({
-                        dragend: 'onScrollerDragEnd',
-                        single: true,
-                        scope: this
-                    });
-                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
-                    this.setState("pull");
-                    scroller.getContainer().unBefore({
-                        dragend: 'onScrollerDragEnd',
-                        single: true,
-                        scope: this
-                    });
-                }
-            }
-            this.getTranslatable().translate(0, -y);
-        }
-    },
-
-    /**
-     * @private
-     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
-     */
-    onScrollerDragEnd: function() {
-        if (this.getState() !== "loading") {
-            var list = this.getList(),
-                scroller = list.getScrollable().getScroller(),
-                translateable = scroller.getTranslatable();
-
-            this.setState("loading");
-            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
-            scroller.minPosition.y = -this.getPullHeight();
-            scroller.on({
-                scrollend: 'fetchLatest',
-                single: true,
-                scope: this
-            });
-        }
-    },
-
-    /**
-     * @private
-     * Updates the content based on the PullRefresh Template
-     */
-    updateView: function() {
-        var state = this.getState(),
-            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
-            templateConfig = {state: state, updated: lastUpdatedText},
-            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
-            fn = "get" + stateFn + "Text";
-
-        if (this[fn] && Ext.isFunction(this[fn])) {
-            templateConfig.message = this[fn].call(this);
-        }
-
-        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
-        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
-        this.getPullTpl().overwrite(this.innerElement, templateConfig);
-    }
-}, function() {
-
-    /**
-     * Updates the PullRefreshText.
-     * @method setPullRefreshText
-     * @param {String} text
-     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
-
-    /**
-     * Updates the ReleaseRefreshText.
-     * @method setReleaseRefreshText
-     * @param {String} text
-     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
-
-    this.override({
-        constructor: function(config) {
-            if (config) {
-                /**
-                 * @cfg {String} pullReleaseText
-                 * Optional Text during the Release State.
-                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
-                 */
-                if (config.hasOwnProperty('pullReleaseText')) {
-                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
-                    config.releaseText = config.pullReleaseText;
-                    delete config.pullReleaseText;
-                }
-
-                /**
-                 * @cfg {String} pullRefreshText
-                 * Optional Text during the Pull State.
-                 * @deprecated 2.3.0 Please use {@link #pullText} instead
-                 */
-                if (config.hasOwnProperty('pullRefreshText')) {
-                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
-                    config.pullText = config.pullRefreshText;
-                    delete config.pullRefreshText;
-                }
-            }
-
-            this.callParent([config]);
-        }
-    });
 });
 
 /**
@@ -76275,96 +75696,6 @@ Ext.define('MedBlogs.model.FlashCards', {
     }
 });
 
-<<<<<<< Updated upstream
-Ext.define('MedBlogs.util.Proxy.Announcements', {
-=======
-Ext.define('MedBlogs.util.Proxy.CardCategories', {
->>>>>>> Stashed changes
-    singleton: true,
-               
-                                       
-                        
-      
-
-    process: function(url) {
-        var announcementStore = Ext.getStore('Announcements'),
-            announcementIds = [],
-            announcementModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            //callbackKey: 'feedscb',
-            callbackName: 'feedscb',    
-            
-            callback: function(successful, data){
-                if(successful === true) {
-                    Ext.Array.each(data.items, function(item) {
-                            // don't add duplicates and make the dates into date format
-                            //if (announcementIds.indexOf(item.id) == -1) {
-                                announcementIds.push(item.id);
-
-                                announcementModel = Ext.create('MedBlogs.model.Announcements', item);
-                                var tempDate = new Date(item.pubDate);
-                                //JANUARY 19, 2014
-                                var month = tempDate.getMonth() + 1;
-                                if(month<10) month = '0' + month;
-                                var toDisplay = tempDate.getDate() + '/' + month + '/' + tempDate.getFullYear();
-                                announcementModel.set('date', toDisplay);
-                                announcementStore.add(announcementModel);
-                            //}
-                    });
-                } else {
-                    Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
-                }
-            }
-            /*
-
-            success: function(data) {
-                Ext.Array.each(data.items, function(item) {
-                        // don't add duplicates and make the dates into date format
-                        if (announcementIds.indexOf(item.id) == -1) {
-                            announcementIds.push(item.id);
-
-                            announcementModel = Ext.create('MedBlogs.model.Announcements', item);
-                            announcementModel.set('date') = toString(new Date(item.pubDate));
-                            announcementStore.add(announcementModel);
-                        }
-                });
-            },
-            failure: function(){
-                Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
-            } */
-        });
-    }
-});
-
-Ext.define('MedBlogs.store.Announcements', {
-    extend:  Ext.data.Store ,
-
-    config: {
-        model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
-        pageSize: 10,
-        sorters:[{
-            property:'pubDate',
-            direction:'DESC'
-        }]
-    }
-});
-
-<<<<<<< Updated upstream
-/*Ext.define('MedBlogs.store.Announcements',{
-    extend: 'Ext.data.Store',
-
-    requires: [
-        'MedBlogs.model.Announcements',
-        'Ext.data.proxy.JsonP'
-    ],
-    config: {
-        model: 'MedBlogs.model.Announcements',
-        autoLoad: true,
-        pageSize: 10,
-=======
 /*Ext.define('MedBlogs.util.Proxy.Announcements', {
     singleton: true,
     requires: [
@@ -76411,6 +75742,7 @@ Ext.define('MedBlogs.store.Announcements', {
     }
 });
 */
+
 Ext.define('MedBlogs.store.Announcements', {
     extend:  Ext.data.Store ,
 
@@ -76422,34 +75754,30 @@ Ext.define('MedBlogs.store.Announcements', {
     config: {
         model: 'MedBlogs.model.Announcements',
         pageSize: 10,
-        //autoLoad:true,
+        autoLoad:true,
         //remoteFilter: true,
         //remoteSort: true,
         sorters:[{
             property:'pubDate',
             direction:'DESC'
-        }],
->>>>>>> Stashed changes
+        }]
+        ,
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
             startParam:'offset',
             limitParam:'limit',
-<<<<<<< Updated upstream
-            page:'page',
-=======
->>>>>>> Stashed changes
             reader: {
                 type: 'json',
                 rootProperty: 'items'
+            },
+            afterRequest: function(request, success){
+                console.log("success ");
+                console.log("success " + success);
             }
         }
     }
 });
-<<<<<<< Updated upstream
-*/
-=======
->>>>>>> Stashed changes
 
 Ext.define('MedBlogs.view.feeds.Feeds', {
 	extend:  Ext.Panel ,
@@ -76472,20 +75800,9 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-<<<<<<< Updated upstream
-				store: 'Announcements',
-				plugins: [
-					{
-						xclass:'Ext.plugin.ListPaging',
-						autoLoad:true
-					},
-                    {
-                        xclass: 'Ext.plugin.PullRefresh',           
-                        pullText: 'Pull to refresh announcements!'
-                    }                        
-=======
 				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
 				plugins: [
+					
 					{
                         xclass: 'Ext.plugin.ListPaging',
                         autoPaging: true
@@ -76493,56 +75810,38 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
                     {
                         xclass: 'Ext.plugin.PullRefresh',
                         pullText: 'Pull down for more data!'
-                    }
-
-					/*{
+                    } 
+                    /*
+                        	var items = Ext.getStore('Settings').getData().items;
+                        	Ext.each(items ,function(record, recordIndex){
+                        		if(record.get('following') === yes) {
+                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
+                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
+                        		}
+                        	});
+                        	*/
+                        //callback.call(plugin);
+                        	//plugin.setState("loaded");
+                        	//var store = plugin.list.getStore();
+                        	//store.load();
+		                    /*var store = plugin.list.getStore();
+		                            store.load(function(records, operation, success) {
+		                                callback.call(plugin);
+		                                console.log( 'me3' );
+		                            });
+		                    */
+		            /*
+					{
                         xclass: 'MedBlogs.CustomPullRefresh',           
                         pullText: 'Pull to refresh announcements!',
                         onRefresh: function(callback, plugin) {
-                        	/*
-                        	var items = Ext.getStore('Settings').getData().items;
-                        	Ext.each(items ,function(record, recordIndex){
-                        		if(record.get('following') === yes) {
-                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
-                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
-                        		}
-                        	});
-                        	/
                         	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-                        	//callback.call(plugin);
-                        	//plugin.setState("loaded");
-                        	//var store = plugin.list.getStore();
-                        	//store.load();
-		                    /*var store = plugin.list.getStore();
-		                            store.load(function(records, operation, success) {
-		                                callback.call(plugin);
-		                                console.log( 'me3' );
-		                            });
-		                    /
 		                },
 		                loadNextPage: function(callback, plugin) {
-                        	/*
-                        	var items = Ext.getStore('Settings').getData().items;
-                        	Ext.each(items ,function(record, recordIndex){
-                        		if(record.get('following') === yes) {
-                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
-                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
-                        		}
-                        	});
-                        	/
                         	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
-                        	//callback.call(plugin);
-                        	//plugin.setState("loaded");
-                        	//var store = plugin.list.getStore();
-                        	//store.load();
-		                    /*var store = plugin.list.getStore();
-		                            store.load(function(records, operation, success) {
-		                                callback.call(plugin);
-		                                console.log( 'me3' );
-		                            });
-		                    /
 		                }
-                    }, 
+                    } */
+                    /*, 
                     {
 						xclass:'Ext.plugin.ListPaging', //'MedBlogs.CustomListPaging',
 						autoPaging: true,
@@ -76554,7 +75853,6 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 					         return (store.getSize() < (store.currentPage * store.getPageSize()));
 					    }
 					}  */                     
->>>>>>> Stashed changes
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -76819,22 +76117,93 @@ Ext.define('MedBlogs.view.flashcards.SelectScreen', {
 
 Ext.define('MedBlogs.view.flashcards.Card', {
     extend:  Ext.Container ,
+    xtype: 'cardScreen',
 
     requires: [
     ],
 
     config: {
         title: 'Flash Cards',
-        layout: 'vbox',
-
-		items: [
+        layout: {
+            type:'vbox',
+            align: 'center'
+        },
+        defaults: {
+            width:'90%'
+        },
+        scrollable:true,
+        items: [
             {
-                id: 'question',
-                tpl: '<div class="flash_card_question">{question}</div>'
-            },
-            {
-                id: 'answer',
-                tpl: '<div class="flash_card_answer">{answer}</div>'
+                xtype: 'panel',
+                id: 'cardPanel',
+                layout: {
+                    type: 'vbox',
+                    align: 'center',
+                    pack: 'center'
+                },
+                defaults: {
+                    width: '90%'
+                },
+                items: [
+                    {
+                        xtype: 'fieldset',
+                        id: 'questionPanel',
+                        title: 'Question:',
+                        items: [
+                            {
+                                id: 'question',
+                                tpl: '<div class="flashcardItem">{question}</div>'
+                            }
+                        ]
+                    },
+                    {
+                        xtype: 'button',
+                        id: 'answerButton',
+                        margin:5,
+                        text: 'Check Answer',
+                        width: '60%',
+                        align: 'center'
+                    },
+                    {
+                        xtype: 'fieldset',
+                        id: 'answerPanel',
+                        title: 'Answer:',
+                        items: [
+                            {
+                                id: 'answer',
+                                tpl: '<div class="flashcardItem">{answer}</div>'
+                            }
+                        ],
+                        hidden: true
+                    },
+                    {
+                        xtype: 'panel',
+                        id: 'buttonPanel',
+                        layout: {
+                            type: 'hbox',
+                            pack: 'center'
+                        },
+                        hidden: true,
+                        cls:'buttonFlashcards',
+                        title: 'How did you do?',
+                        items: [
+                            {
+                                xtype: 'button',
+                                id: 'yesButton',
+                                text: 'Correct',
+                                width: '40%',
+                                margin: 5
+                            },
+                            {
+                                xtype: 'button',
+                                id: 'noButton',
+                                text: 'Incorrect',
+                                width: '40%',
+                                margin: 5
+                            }
+                        ]
+                    }
+                ]
             }
         ],
 
@@ -76845,6 +76214,8 @@ Ext.define('MedBlogs.view.flashcards.Card', {
         if (newRecord) {
             this.down('#question').setData(newRecord.data);
             this.down('#answer').setData(newRecord.data);
+             this.down('#questionPanel').setData(newRecord.data);
+            this.down('#answerPanel').setData(newRecord.data);
         }
     }
 });
@@ -76864,6 +76235,32 @@ Ext.define('MedBlogs.view.FlashCardsNavigation', {
 		layout: 'card',
 		
         autoDestroy: false,
+
+        navigationBar: {
+            items: [
+                {
+                    xtype: 'button',
+                    id: 'submitButton',
+                    text: 'Submit',
+                    align: 'right',
+                    hidden: true
+                },
+                {
+                    xtype: 'button',
+                    id: 'skipButton',
+                    text: 'Skip',
+                    align: 'right',
+                    hidden: true
+                },
+                {
+                    xtype: 'button',
+                    id: 'doneCardsButton',
+                    text: 'Done',
+                    align: 'left',
+                    hidden: true
+                }
+            ]
+        },
         
         items: [
             { xtype: 'flashcardSelectScreen' }
@@ -77330,16 +76727,126 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     config: {
         refs: {
             navigationContainer: 'flashcardsNavigation',
+            cardScreen: 'flashcardsNavigation cardScreen',
             selectScreen: 'flashcardsNavigation flashcardSelectScreen',
-            selectGrid: '#categoryDataview'
+            selectGrid: '#categoryDataview',
+            submitButton: '#submitButton',
+            skipButton: '#skipButton',
+            doneButton: '#doneCardsButton',
+            checkButton: '#answerButton',
+            yesButton: '#yesButton',
+            noButton: '#noButton',
+            answerPanel: 'flashcardsNavigation cardScreen #cardPanel #answerPanel',
+            buttonPanel: 'flashcardsNavigation cardScreen #cardPanel #buttonPanel'
         },
 
         control: {
+            navigationContainer: {
+                push: 'onMainPush',
+                pop: 'onMainPop'
+            },
         	selectGrid: {
-           		 itemtap: 'onCategoryTap'
-		    }
+           		itemtap: 'onCategoryTap'
+		    },
+            submitButton: {
+                tap: 'onSubmitSelect'
+            },
+            skipButton: {
+                tap: 'onSkipSelect'
+            },
+            doneButton: {
+                tap: 'onDoneSelect'
+            },
+            checkButton:  {
+                tap: function(){
+                    this.hideButton(this.getCheckButton());
+                    this.incrementTotal();
+                    this.hideButton(this.getSkipButton());
+                    this.showButton(this.getAnswerPanel());
+                    this.showButton(this.getButtonPanel());
+                }
+            },
+            yesButton:  {
+                tap: function(){
+                    this.incrementCorrect();
+                    this.loadNewQuestion();
+                }
+            },
+            noButton:  {
+                tap: function(){
+                    this.incrementIncorrect();
+                    this.loadNewQuestion();
+                }
+            }
         }
     },
+
+    // @private
+    $total: 0,
+    // @private
+    getTotal: function() {
+        return this.$total;
+    },
+    // @private
+    setTotal: function(value) {
+        this.$total = value;
+        //this.updateView();
+    },
+    incrementTotal: function() {
+        this.$total++;
+        //this.updateView();
+    },
+
+
+    // @private
+    $skipped: 0,
+    // @private
+    getSkipped: function() {
+        return this.$skipped;
+    },
+    // @private
+    setSkipped: function(value) {
+        this.$skipped = value;
+        //this.updateView();
+    },
+    incrementSkipped: function() {
+        this.$skipped++;
+        //this.updateView();
+    },
+
+
+    // @private
+    $correct: 0,
+    // @private
+    getCorrect: function() {
+        return this.$correct;
+    },
+    // @private
+    setCorrect: function(value) {
+        this.$correct = value;
+        //this.updateView();
+    },
+    incrementCorrect: function() {
+        this.$correct++;
+        //this.updateView();
+    },
+
+    // @private
+    $incorrect: 0,
+    // @private
+    getIncorrect: function() {
+        return this.$incorrect;
+    },
+    // @private
+    setIncorrect: function(value) {
+        this.$incorrect = value;
+        //this.updateView();
+    },
+    incrementIncorrect: function() {
+        this.$incorrect++;
+        //this.updateView();
+    },
+
 
     onCategoryTap: function(list, index, node, record) {
     	if (typeof(this.selectedCategories) === 'undefined') {
@@ -77347,11 +76854,114 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     	}
         // check and only show on select 
         if(list.isSelected(record) === false) {
+            this.showButton(this.getSubmitButton());
         	this.selectedCategories.push(record);
         } else {
+            if(list.getSelectionCount() === 1)
+                 this.hideButton(this.getSubmitButton());
 	        Ext.Array.remove(this.selectedCategories, record);
         }
-    }
+    },
+
+    onMainPush: function(view, item) {
+        //deselect categories
+        //this.getFeedList().deselectAll();
+        this.getNavigationContainer().getNavigationBar().leftBox.query('button')[0].hide();
+        if (item.xtype == "flashcardSelectScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "cardScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.showButton(this.getSkipButton());
+            this.showButton(this.getDoneButton());
+        }
+    },
+
+    onMainPop: function(view, item) {
+        if (item.xtype == "flashcardSelectScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        } else if (item.xtype == "cardScreen") {
+            this.hideButton(this.getSubmitButton());
+            this.hideButton(this.getSkipButton());
+            this.hideButton(this.getDoneButton());
+        }
+    },
+
+    onSubmitSelect: function() {
+        if (!this.cardScreen) {
+            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
+            Ext.getStore('FlashCards').load();
+            this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
+        } 
+        if(typeof(this.getAnswerPanel()) !== 'undefined'){
+            this.showButton(this.getAnswerPanel());
+            this.showButton(this.getButtonPanel());
+        }
+
+        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        // Push the show contact view into the navigation view
+        this.getNavigationContainer().push(this.cardScreen);
+    },
+
+    onSkipSelect: function() {
+       this.incrementTotal();
+       this.incrementSkipped();
+       this.loadNewQuestion();
+    },
+
+    onDoneSelect: function() {
+        Ext.Msg.alert("Well Done", "<p>Correct answers: " + 
+            this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
+            "Inorrect answers: " + 
+            this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
+            "Skipped questions: " + 
+            this.getSkipped() + " / " + this.getTotal() + "</p>" 
+            , Ext.emptyFn);
+        this.getNavigationContainer().pop();
+    },
+
+    showButton: function(genericButton) {
+
+        if (!genericButton.isHidden()) {
+            return;
+        }
+
+        genericButton.show();
+    },
+
+    hideButton: function(genericButton) {
+
+        if (genericButton.isHidden()) {
+            return;
+        }
+
+        genericButton.hide();
+    },
+
+    loadNewQuestion: function() {
+        Ext.getStore('FlashCards').removeAt(0);
+        Ext.getStore('FlashCards').sync();
+        if(Ext.getStore('FlashCards').getCount()===0) {
+            Ext.getStore('FlashCards').load();
+            console.log('load store again');
+        }
+        this.resetForm();
+    },
+
+    loadMoreQuestions: function() {
+    
+    },
+
+    resetForm: function() {
+        this.showButton(this.getSkipButton());
+        this.showButton(this.getCheckButton());
+        this.hideButton(this.getAnswerPanel());
+        this.hideButton(this.getButtonPanel());
+        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+    },
 });
 
 Ext.define('MedBlogs.store.FlashCards',{
@@ -77393,13 +77003,10 @@ Ext.application({
 
                
                                  
-<<<<<<< Updated upstream
                           
-                                 
-=======
+                                  
                                     
                                       
->>>>>>> Stashed changes
       
 
     controllers: [
@@ -77460,16 +77067,11 @@ Ext.application({
     launchView: 'Announcements',
 
     launch: function() {
-<<<<<<< Updated upstream
-        Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-=======
-        Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        MedBlogs.util.Proxy.CardCategories.process('feed.js');
+        //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
+        //MedBlogs.util.Proxy.CardCategories.process('feed.js');
 
         //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
         //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
->>>>>>> Stashed changes
 
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
@@ -77497,31 +77099,6 @@ Ext.application({
                 }
             }
         );
-    },
-
-    doInsertToken:function(jsonRequestObject) {
-
-        Ext.Ajax.request({
-            url: 'getRequest.json',
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000,
-            params: Ext.Object.toQueryString(jsonRequestObject),
-
-            success: function(response, opts) {
-                if (response && response.responseText) {
-                    var jsonObject = Ext.JSON.decode(response.responseText);
-                    // handle search result
-                } else {
-                    // handle error response
-                }
-            }, failure: function(response, opts) {
-                // handle error response
-            }
-        });
     },
     
     subscriptionsInit: function (subscriptions) {
