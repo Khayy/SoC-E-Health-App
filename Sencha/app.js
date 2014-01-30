@@ -163,9 +163,9 @@ Ext.application({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		        /*Ext.Msg.alert("Token", "Device token:" + token);
+		        
 		        Ext.Ajax.request({
-		            url: 'the push server url',
+		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
 		            method: 'GET',
 		            headers: {
 		                'Accept': 'application/json',
@@ -177,12 +177,16 @@ Ext.application({
 		            success: function(response, opts) {
 		                if (!(response && response.responseText === 'true')) {
 		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                } else {
+			                Ext.Msg.alert("Push stuff setup and should have spoke to server", JSON.stringify(response));
 		                }
 		            }, 
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
-		        });*/
+		        });
+		        
+		        Ext.Msg.alert("Token", "Device token:" + token);
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
@@ -192,12 +196,12 @@ Ext.application({
 				//subscriptions.filter([{property: "following", value: "yes"}]);
 				//sub
 				/*Ext.Array.each(subscriptions, function (item, index) {
-					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {
+					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
 				        Ext.device.Notification.show({
 						    title: 'New announcement',
 						    message: notification.alert.title
 						});
-					}
+				/*	}
 				});*/
 				// TODO refresh feeds
 		    }

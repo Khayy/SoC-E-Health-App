@@ -39,8 +39,8 @@ Ext.define('MedBlogs.view.Help', {
 	                '</tpl>'
 	            ].join(''),
 	            contentItemTpl: [
-	                '<div style="display:-webkit-box;width:100%;text-align:right;">',
-	                    '<div style="creator">{text}</div>',
+	                '<div style="display:-webkit-box;width:100%;text-align:left;">',
+	                    '<div class="helpItem">{text}</div>',
 	                '</div>'
 	            ].join(''),
 	            useSelectedHighlights: false,

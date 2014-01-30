@@ -76462,8 +76462,8 @@ Ext.define('MedBlogs.view.Help', {
 	                '</tpl>'
 	            ].join(''),
 	            contentItemTpl: [
-	                '<div style="display:-webkit-box;width:100%;text-align:right;">',
-	                    '<div style="creator">{text}</div>',
+	                '<div style="display:-webkit-box;width:100%;text-align:left;">',
+	                    '<div class="helpItem">{text}</div>',
 	                '</div>'
 	            ].join(''),
 	            useSelectedHighlights: false,
@@ -76565,6 +76565,18 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 
         }
     },
+
+	launch: function () {
+		var subscriptions = Ext.getStore('Subscriptions');
+		subscriptions.load();
+		var result = subscriptions.find('following', 'yes');
+		if (result === -1) {
+			if (!this.settingsScreen) {
+           		this.settingsScreen = Ext.create('MedBlogs.view.feeds.Settings');
+		   	}
+			this.getMain().push(this.settingsScreen);
+		}
+	},
 
     onMainPush: function(view, item) {
         var settingsButton = this.getSettingsButton();
@@ -77091,8 +77103,6 @@ Ext.application({
         '1536x2008': 'resources/startup/1536x2008.png',
         '1496x2048': 'resources/startup/1496x2048.png'
     },
-    
-    launchView: 'Announcements',
 
     launch: function() {
         //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
@@ -77105,7 +77115,7 @@ Ext.application({
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-       // this.pushInit();
+        this.pushInit();
        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
@@ -77130,19 +77140,6 @@ Ext.application({
     },
     
     subscriptionsInit: function (subscriptions) {
-    /// fake a pinned post... take out !!!!
-    var posts = Ext.getStore('PinnedPosts');
-    posts.load();
-    if (posts.getCount() < 1) {
-    	posts.add({
-				category: 'Year 3',
-				title: 'CAP Test Tomorrow',
-				creator: 'Alison Grey',
-				date: '16/01/2014',
-				description: 'Reminder: The year 3 CAP test is tomorrow.'
-			});
-		posts.sync();
-    }
    		// load and setup subscriptions from local storage
 		var subscriptions = Ext.getStore('Subscriptions');
 		subscriptions.load();
@@ -77179,27 +77176,24 @@ Ext.application({
 			});
 			
 			subscriptions.sync();
-			
-			this.launchView = 'Subscriptions';
 	    }
     },
     
     pushInit: function() {
-    	var params = {	type: subscribe };
+    	var params = {	type: 'subscribe' };
     	if (Ext.os.is.iOS) {
-	    	params.os = 'ios';
+	    	params.platform = 'ios';
     	} else if (Ext.os.is.Android) {
-	    	params.os = 'android';
+	    	params.platform = 'android';
     	}
     	
 	    Ext.device.Push.register({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		    	console.log(token);
-		        /*Ext.Msg.alert("Token", "Device token:" + token);
+		        
 		        Ext.Ajax.request({
-		            url: 'the push server url',
+		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
 		            method: 'GET',
 		            headers: {
 		                'Accept': 'application/json',
@@ -77211,25 +77205,33 @@ Ext.application({
 		            success: function(response, opts) {
 		                if (!(response && response.responseText === 'true')) {
 		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                } else {
+			                Ext.Msg.alert("Push stuff setup and should have spoke to server", JSON.stringify(response));
 		                }
 		            }, 
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
-		        });*/
+		        });
+		        
+		        Ext.Msg.alert("Token", "Device token:" + token);
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		    },
 		    received: function(notification) {
-		    	var subscriptions = Ext.getStore('Subscriptions');
-				
-		    	// TODO: check the year against subscriptions
-		    	// and refresh the feeds
-		        Ext.device.Notification.show({
-				    title: 'New announcement',
-				    message: notification.alert
-				});
+		    	//var subscriptions = Ext.getStore('Subscriptions');
+				//subscriptions.filter([{property: "following", value: "yes"}]);
+				//sub
+				/*Ext.Array.each(subscriptions, function (item, index) {
+					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
+				        Ext.device.Notification.show({
+						    title: 'New announcement',
+						    message: notification.alert.title
+						});
+				/*	}
+				});*/
+				// TODO refresh feeds
 		    }
 		});
     }
