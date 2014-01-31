@@ -60,8 +60,7 @@ Ext.define('MedBlogs.store.Announcements', {
         sorters:[{
             property:'pubDate',
             direction:'DESC'
-        }]
-        ,
+        }],
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/announcements',

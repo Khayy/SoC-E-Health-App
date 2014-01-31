@@ -2,6 +2,7 @@ Ext.define('MedBlogs.model.Announcements',{
 
 	extend: 'Ext.data.Model',
 	config: {
+		idProperty: 'link',
 		fields: 
 		[
 			'uid',

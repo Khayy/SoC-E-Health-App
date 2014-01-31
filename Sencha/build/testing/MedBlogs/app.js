@@ -75121,6 +75121,7 @@ Ext.define('MedBlogs.model.Announcements',{
 
 	extend:  Ext.data.Model ,
 	config: {
+		idProperty: 'link',
 		fields: 
 		[
 			'uid',
@@ -75263,8 +75264,7 @@ Ext.define('MedBlogs.store.Announcements', {
         sorters:[{
             property:'pubDate',
             direction:'DESC'
-        }]
-        ,
+        }],
         proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/announcements',
@@ -76273,11 +76273,15 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
                 tap: function(){
                     this.hideButton(this.getCheckButton());
                     this.incrementTotal();
-                    this.hideButton(this.getSkipButton());
                     this.showButton(this.getAnswerPanel());
-                    if(this.isTest())
+                    if(this.isTest()) {
+                        this.hideButton(this.getSkipButton());
                         this.showButton(this.getButtonPanel());
-                    else this.hideButton(this.getButtonPanel());
+                    }
+                    else {
+                        this.showButton(this.getSkipButton());
+                        this.hideButton(this.getButtonPanel());
+                    }
                 }
             },
             yesButton:  {
@@ -76440,34 +76444,46 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             else this.hideButton(this.getButtonPanel());
         }
 
+        if(this.isTest()) this.getSkipButton().setText('Skip');
+        else this.getSkipButton().setText('Next');
+
         this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
         this.getNavigationContainer().push(this.cardScreen);
     },
 
     onSkipSelect: function() {
-       this.incrementTotal();
-       this.incrementSkipped();
+        if(this.isTest() === false) {
+           this.incrementTotal();
+           this.incrementSkipped();
+       }
        this.loadNewQuestion();
     },
 
     onDoneSelect: function() {
-        var results = "<p>Correct answers: " + 
-            this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
-            "Inorrect answers: " + 
-            this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
-            "Skipped questions: " + 
-            this.getSkipped() + " / " + this.getTotal();
+        if(this.isTest()) {
+               this.incrementTotal();
+               this.incrementSkipped();
+           
+            var results = "<p>Correct answers: " + 
+                this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
+                "Inorrect answers: " + 
+                this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
+                "Skipped questions: " + 
+                this.getSkipped() + " / " + this.getTotal();
 
-        var notAnswered = this.getTotal() - (this.getSkipped() + this.getCorrect() + this.getIncorrect());
-        if(notAnswered != 0) {
-            results = results + "<br/>" + 
-           "Unanswered questions: " + 
-            notAnswered + " / " + this.getTotal(); "</p>";
+            var notAnswered = this.getTotal() - (this.getSkipped() + this.getCorrect() + this.getIncorrect());
+            if(notAnswered != 0) {
+                results = results + "<br/>" + 
+               "Unanswered questions: " + 
+                notAnswered + " / " + this.getTotal(); "</p>";
+            }
+            else results = results + "</p>";
+
+            Ext.Msg.alert("Well Done",  results, this.getNavigationContainer().pop());
+        } else {
+            this.getNavigationContainer().pop()
         }
-        else results = results + "</p>";
-
-        Ext.Msg.alert("Well Done",  results, this.getNavigationContainer().pop());
     },
 
     showButton: function(genericButton) {
