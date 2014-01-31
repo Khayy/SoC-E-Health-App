@@ -85,46 +85,18 @@
                     "category": true,
                     "items": [
                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
-                        },
-                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
+                           "text": "<div> <b>1. Retrieve your personal iCal URL</b><br /> <ol> <li>On your iPhone or iPad log into: https://mbchb.dundee.ac.uk or https://unifi.dundee.ac.uk</li> <li>Click the \"Calendar\" link, this will take you to your personal calendar.</li> <li>Tap the \"iCal\" text box under \"My Calendars\" then press the text box for 1 second and let go.</li> <li>Press \"Select All\" then \"Copy\".</li> </ol> <b>2. Subscribe using your iPad or iPhone</b><br /><ol> <li>On your iPhone or iPad, go to \"Settings\", then choose \"Mail, Contacts, Calendars\", then choose \"Add Account\".</li> <li>Choose \"Other\"</li> <li>Then choose \"Add Subscribed Calendar\"</li> <li>Paste your iCal URL (then press the text box for 1 second and let go, select Paste), then press Next.</li> <li>On the \"Subscription\" screen enter a name for the calendar in the Description field and press Save. For example \"My MBChB Calendar\".</li> <li>The calendar will now be imported and will update with any changes. The calendar will now be visible in the Apple \"Calendar\" application as shown.</li> </ol>",
+                           "leaf": true
                         }
                     ]
                 },
                 {
                     "text": "Android",
-                    "category": true,
+                	"category": true,
                     "items": [
                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
-                        },
-                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
+                           "text": "<div> <b>1. Retrieve your personal iCal URL</b><br /> <ol> <li>log into: https://mbchb.dundee.ac.uk or https://unifi.dundee.ac.uk</li> <li>click the \"Calendar\" link, this will take you to your personal calendar. Highlight (Ctrl+A) and Copy (Ctrl+C) the URL in the \"iCal\" text box on the left under \"My Calendars\".</li> </ol> <b>2. Subscribe using Google Calendar</b><br /> <ol> <li>Login to your Google calendar</li> <li>Under \"Other Calendars\", select \"Add by URL\" as shown.</li> <li>Paste (Ctrl+V) your iCal URL into the URL text box and click \"Add Calendar\"</li> <li>The calendar will now be imported.</li> </ol> </div>",
+                           "leaf": true
                         }
                     ]
                 }
@@ -138,46 +110,18 @@
                     "category": true,
                     "items": [
                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
-                        },
-                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
+                            "text": "<ol> <li>Tap Settings > Mail, Contacts, Calendars > Add Account. </li> <li>Tap Microsoft Exchange. </li> <li>You don’t need to enter anything in the Domain box. Enter the information requested in the Email, Username, and Password boxes. You need to enter your full e-mail address in the Email and Username boxes (for example, jksmith@dundee.ac.uk).</li> <li>Tap Next on the upper-right corner of the screen. Click next/accept if it asks you to trust the connection. Your iPhone will try to find the settings it needs to set up your account. Go to step 7 if your iPhone finds your settings.</li> </ol><b>If your iPhone can’t find your settings, you’ll need to follow these steps:</b><br /> <ol> <li>In the Server box, enter outlook.office365.com, and then tap Next.  In the username box enter your full email in the format jksmith@dundee.ac.uk</li> <li>Choose the type of information you want to synchronize between your account and your device, and then touch Save. By default, Mail, Contacts, and Calendar information are synchronized. </li> </ol>",
+                           	"leaf": true
                         }
                     ]
                 },
                 {
                     "text": "Android",
-                    "category": true,
+                	"category": true,
                     "items": [
                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
-                        },
-                         {
-                            "text": "Question?",
-                            "items": [
-                                {
-                                    "text": "Answer ...",
-                                    "leaf": true
-                                }
-                            ]
+                            "text": "<ol> <li>From the Applications menu, select Email. This application may be named Mail on some versions of Android.</li> <li>Select Exchange account. This option may be named Exchange ActiveSync on some versions of Android.</li> <li>Type your full email address, in the format jksmith@dundee.ac.uk, and your password, and then select Next.</li> <li>Click trust if asked to accept security certificate</li> <li>Enter the following account information and select Next.</li> <li>Leave the Domain box empty and type your full email address (in the format jksmith@dundee.ac.uk) in the Username box.</li> <li>Password   Use the password that you use to access your account. </li> <li>Exchange Server/Server   - enter outlook.office365.com </li> <li>As soon as your phone verifies the server settings, the Account Options screen displays. The options available depend on the version of Android on your device. The options may include the following: <ul> <li><i>Email checking frequency</i> - The default value is Automatic (push). When you select this option, email messages will be sent to your phone as they arrive. We recommend only selecting this option if you have an unlimited data plan.</li> <li><i>Amount to synchronise</i> - This is the amount of mail you want to keep on your mobile phone. You can choose from several length options, including One day, Three days and One week. </li> <li><i>Notify me when email arrives</i> - If you select this option, your mobile phone will notify you when you receive a new email message. </li> <li><i>Sync contacts from this account</i> - If you select this option, your contacts will be synchronised between your phone and your account. </li> </ul> </li> <li>Select Next and then type a name for this account and the name you want displayed when you send email to others. Select Done to complete the email setup and start using your account. </li> </ol>",
+                           	"leaf": true
                         }
                     ]
                 }

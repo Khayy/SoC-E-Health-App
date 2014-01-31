@@ -17,12 +17,12 @@
        under the License.
  */
 
-package uk.ac.dundee.medblogsmobile;
+package com.soc_e_health_app.medblogs;
 
 import android.os.Bundle;
 import org.apache.cordova.*;
 
-public class HelloCordova extends DroidGap
+public class HelloCordova extends CordovaActivity
 {
     @Override
     public void onCreate(Bundle savedInstanceState)

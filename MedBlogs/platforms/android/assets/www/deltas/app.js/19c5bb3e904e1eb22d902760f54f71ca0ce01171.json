@@ -1,0 +1,1 @@
+["/*176a982c0e5f29d06aac01c85d36b147e03509f3",42,588730,"2",588773,133,"announcement",588910,76,"announcement",588990,303,"\"storeAnnounce\"",589322,78,",autoSnapBack:true",589400,19868,"registered:function(b){Ext.Msg.alert(\"Token\",\"Device registered:\"+b+\" \"+b.regid+\" \"+b.regId",609265,32]

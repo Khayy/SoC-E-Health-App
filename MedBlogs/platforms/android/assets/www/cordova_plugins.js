@@ -7,5 +7,11 @@ module.exports = [
             "PushNotification"
         ]
     }
-]
+];
+module.exports.metadata = 
+// TOP OF METADATA
+{
+    "com.phonegap.plugins.PushPlugin": "2.1.1"
+}
+// BOTTOM OF METADATA
 });
