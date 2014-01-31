@@ -75194,60 +75194,12 @@ Ext.define('MedBlogs.model.FlashCards', {
 
     config: {
         fields: [
-            'id',
-            'category',
+            'cardSubject',
             'question',
             'answer'
         ]
     }
 });
-
-/*Ext.define('MedBlogs.util.Proxy.Announcements', {
-    singleton: true,
-    requires: [
-        'MedBlogs.model.Announcements',
-        'Ext.data.JsonP'
-    ],
-
-    process: function(url) {
-        var announcementStore = Ext.getStore('Announcements'),
-            announcementIds = [],
-            announcementModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            //callbackKey: 'feedscb',
-            //callbackName: 'feedscb',    
-            
-            callback: function(successful, data){
-                if(successful === true) {
-                    console.log(data.items.toString());
-                    Ext.Array.each(data.items, function(item) {
-                            // don't add duplicates and make the dates into date format
-                            //if (announcementIds.indexOf(item.get('uid')) == -1) {
-                                //announcementIds.push(item);
-                            //if(announcementStore.getCount() < announcementStore.getPageSize()) {
-                                announcementModel = Ext.create('MedBlogs.model.Announcements', item);
-                                var tempDate = new Date(item.pubDate);
-                                var month = tempDate.getMonth() + 1;
-                                if(month<10) month = '0' + month;
-                                var day = tempDate.getDate();
-                                if(day<10) day = '0' + day;
-                                var toDisplay = day + '/' + month + '/' + tempDate.getFullYear();
-                                announcementModel.set('date', toDisplay);
-                                announcementStore.add(announcementModel);
-                            //}
-                            //}
-                    });
-                    announcementStore.sync();
-                } else {
-                    Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
-                }
-            }
-        });
-    }
-});
-*/
 
 Ext.define('MedBlogs.store.Announcements', {
     extend:  Ext.data.Store ,
@@ -75270,6 +75222,7 @@ Ext.define('MedBlogs.store.Announcements', {
             url: 'http://137.117.146.199:8080/E-Health-Server/announcements',
             startParam:'offset',
             limitParam:'limit',
+            timeout: 2000,
             reader: {
                 type: 'json',
                 rootProperty: 'announcements'
@@ -75315,37 +75268,7 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
                     {
                         xclass: 'Ext.plugin.ListPaging',
                         autoPaging: true
-                    }
-                    /*
-                        	var items = Ext.getStore('Settings').getData().items;
-                        	Ext.each(items ,function(record, recordIndex){
-                        		if(record.get('following') === yes) {
-                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
-                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
-                        		}
-                        	});
-                        	*/
-                        //callback.call(plugin);
-                        	//plugin.setState("loaded");
-                        	//var store = plugin.list.getStore();
-                        	//store.load();
-		                    /*var store = plugin.list.getStore();
-		                            store.load(function(records, operation, success) {
-		                                callback.call(plugin);
-		                                console.log( 'me3' );
-		                            });
-		                    */
-		            /*
-					{
-                        xclass: 'MedBlogs.CustomPullRefresh',           
-                        pullText: 'Pull to refresh announcements!',
-                        onRefresh: function(callback, plugin) {
-                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-		                },
-		                loadNextPage: function(callback, plugin) {
-                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
-		                }
-                    } */                
+                    }       
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -75517,63 +75440,63 @@ Ext.define('MedBlogs.store.CardCategories', {
 		model: 'MedBlogs.model.CardCategories',
 		data: 
 		[
-			{
-				id : '1', 
+			/*{
+				id : '0', 
 				image: 'resources/images/ageing_and_child_development.jpg',
 				category: 'Ageing &amp; childhood<br />development'
-			},
+			},*/
 			{
-				id : '2', 
+				id : '1', 
 				image: 'resources/images/cardiology.jpg',
 				category: 'Cardiovascular<br /> &nbsp;'
 			},
 			{
-				id : '3', 
+				id : '2', 
 				image: 'resources/images/dermatology.jpg',
 				category: 'Dermatology<br /> &nbsp;'
 			},
 			{
-				id : '4', 
+				id : '3', 
 				image: 'resources/images/endocrinology.jpg',
 				category: 'Endocrine<br /> &nbsp;'
 			},
 			{
-				id : '5', 
+				id : '4', 
 				image: 'resources/images/ENT.jpg',
 				category: 'ENT<br /> &nbsp;'
 			},
 			{
-				id : '6', 
+				id : '5', 
 				image: 'resources/images/GI.jpg',
 				category: 'Haematology<br /> &nbsp;'
 			},
 			{
-				id : '7', 
+				id : '6', 
 				image: 'resources/images/musculoskeletal.jpg',
 				category: 'Musculoskeletal<br /> &nbsp;'
 			},
 			{
-				id : '8', 
+				id : '7', 
 				image: 'resources/images/neurology.jpg',
 				category: 'Neurology<br /> &nbsp;'
 			},
 			{
-				id : '9', 
+				id : '8', 
 				image: 'resources/images/opthalmology.jpg',
 				category: 'Opthalmology<br /> &nbsp;'
 			},
 			{
-				id : '10', 
+				id : '9', 
 				image: 'resources/images/psychiatry.jpg',
 				category: 'Psychiatry<br /> &nbsp;'
 			},
 			{
-				id : '11', 
+				id : '10', 
 				image: 'resources/images/renal.jpg',
 				category: 'Renal<br /> &nbsp;'
 			},
 			{
-				id : '12', 
+				id : '11', 
 				image: 'resources/images/resipiratory.jpg',
 				category: 'Resipiratory<br /> &nbsp;'
 			}
@@ -75643,6 +75566,10 @@ Ext.define('MedBlogs.view.flashcards.Card', {
                     width: '90%'
                 },
                 items: [
+                     {
+                            id: 'category',
+                            tpl: '<div class="cardSubject">{cardSubject}</div>'
+                    },
                     {
                         xtype: 'fieldset',
                         id: 'questionPanel',
@@ -75710,6 +75637,7 @@ Ext.define('MedBlogs.view.flashcards.Card', {
 
     updateRecord: function(newRecord) {
         if (newRecord) {
+            this.down('#cardSubject').setData(newRecord.data);
             this.down('#question').setData(newRecord.data);
             this.down('#answer').setData(newRecord.data);
              this.down('#questionPanel').setData(newRecord.data);
@@ -75965,15 +75893,12 @@ Ext.define('MedBlogs.view.Help', {
 	                '</div>'
 	            ].join(''),
 	            useSelectedHighlights: false,
-	            showCount: true,
-	            //animation: true,
+	            showCount: false,
 	            indent: true,
-	            //animationDuration: 300,
 	            itemId: 'nested',
 	            listeners: {
 	                initialize: function() {
 	                   this.load();
-	                   //this.addCls('PL-view');
 	                }
 	            }
 	        }
@@ -76118,6 +76043,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     },
 
     onDoneSelect: function() {
+        Ext.getStore('storeAnnounce').load();
         this.getMain().pop();
     },
 
@@ -76248,8 +76174,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             checkButton: '#answerButton',
             yesButton: '#yesButton',
             noButton: '#noButton',
-            answerPanel: 'flashcardsNavigation cardScreen #cardPanel #answerPanel',
-            buttonPanel: 'flashcardsNavigation cardScreen #cardPanel #buttonPanel'
+            answerPanel: 'flashcardsNavigation cardScreen #answerPanel',
+            buttonPanel: 'flashcardsNavigation cardScreen #buttonPanel'
         },
 
         control: {
@@ -76374,11 +76300,11 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
             this.showButton(this.getSubmitButton());
-        	this.selectedCategories.push(record);
+        	this.selectedCategories.push(record.data.id);
         } else {
             if(list.getSelectionCount() === 1)
                  this.hideButton(this.getSubmitButton());
-	        Ext.Array.remove(this.selectedCategories, record);
+	        Ext.Array.remove(this.selectedCategories, record.data.id);
         }
     },
 
@@ -76402,10 +76328,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         if (item.xtype == "flashcardSelectScreen") {
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
-            this.hideButton(this.getDoneButton());
+            this.showButton(this.getDoneButton());
         } else if (item.xtype == "cardScreen") {
-            Ext.getStore('FlashCards').removeAll();
-            Ext.getStore('FlashCards').sync();
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
@@ -76413,28 +76337,54 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
-        this.loadCardScreen();
-        /*
-        Ext.Msg.confirm("Welcome", "Would like to take a test or just practise?",  function (choice) {
-                if (choice === 'yes' || choice === 'ok') {
-                    this.setTest(true);
-                    this.loadCardScreen();
-                } else {
-                    this.setTest(false);
-                    this.loadCardScreen();
-                }
-        }); */
+
+        var smth = this.checkResponse; 
+        var that = this;
+
+        this.loadNewQuestion();
+
+        var msg = new Ext.MessageBox();
+        msg.show({
+            title: 'Welcome',
+            message: 'Would like to take a test or just practise?',
+            buttons: [{text:'Test',itemId:'sure'},{text:'Practise',itemId:'noway'}],
+            fn:function(response){
+                smth(that, response);
+            }
+        });
+    },
+
+    checkResponse: function(me, response){
+        if(response === 'sure'){
+            me.setTest(true);
+            console.log(me.isTest());
+        } else {
+            me.setTest(false);
+            console.log(me.isTest());
+        }
+
+        me.loadCardScreen();
+    },
+
+    formatSelectedCategories: function(){
+        return this.selectedCategories.join('x');
+    },
+
+    loadNewQuestion: function() {
+        var that = this;
+        var store = Ext.getStore('FlashCards');
+        var cats =  this.formatSelectedCategories();
+        store.getProxy().setExtraParams({'subjects': cats});
+        store.load();
     },
 
     loadCardScreen: function(){
         if (!this.cardScreen) {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
             this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
         }  else {
-            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
-            this.loadNewQuestion();
+            Ext.getStore('FlashCards').removeAll();
+            Ext.getStore('FlashCards').sync();
         }
         
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
@@ -76447,7 +76397,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         if(this.isTest()) this.getSkipButton().setText('Skip');
         else this.getSkipButton().setText('Next');
 
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        this.loadNewQuestion();
+
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
         this.getNavigationContainer().push(this.cardScreen);
     },
@@ -76461,6 +76413,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onDoneSelect: function() {
+        var that = this;
         if(this.isTest()) {
                this.incrementTotal();
                this.incrementSkipped();
@@ -76480,7 +76433,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             }
             else results = results + "</p>";
 
-            Ext.Msg.alert("Well Done",  results, this.getNavigationContainer().pop());
+            Ext.Msg.alert("Well Done",  results, function(){
+                that.getNavigationContainer().pop();
+            });
         } else {
             this.getNavigationContainer().pop()
         }
@@ -76504,21 +76459,13 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         genericButton.hide();
     },
 
-    loadNewQuestion: function() {
-        Ext.getStore('FlashCards').removeAt(0);
-        Ext.getStore('FlashCards').sync();
-        if(Ext.getStore('FlashCards').getCount()===0) {
-            Ext.getStore('FlashCards').load();
-            console.log('load store again');
-        }
-        this.resetForm();
-    },
-
     resetForm: function() {
         this.showButton(this.getSkipButton());
         this.showButton(this.getCheckButton());
-        this.hideButton(this.getAnswerPanel());
-        this.hideButton(this.getButtonPanel());
+        if(typeof(this.getAnswerPanel()) !== 'undefined'){
+            this.hideButton(this.getAnswerPanel());
+            this.hideButton(this.getButtonPanel());
+        }
         this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
     }
 });
@@ -76527,39 +76474,22 @@ Ext.define('MedBlogs.store.FlashCards',{
 	extend:  Ext.data.Store ,
 	config: {
 		model: 'MedBlogs.model.FlashCards',
-		data: 
-		[
+		/*data: [
 			{
-				id : '1', 
-				category: 'anatomy',
-				question: 'What is important to remember about a sudden decline in health in the elderly?',
-				answer: 'Always due to disease'
-			},
-			{
-				id : '2', 
-				category: 'anatomy',
-				question: 'What are the key to living to the age of 100?',
-				answer: 'Non-smoker<br />Slim, tall<br />Little diabetes, dementia, heart disease<br />Practical, strong<br />Keep friends'
-			},
-			{
-				id : '3', 
-				category: 'anatomy',
-				question: 'How much walking per week confers with substantial benefits to your health 30% cardiovascular event reduction?',
-				answer: '45-75 min per week'
-			},
-			{
-				id : '4', 
-				category: 'anatomy',
-				question: 'Does a 50% calorie restricted diet make you live longer?',
-				answer: 'Proved correct in rats'
-			},
-			{
-				id : '5', 
-				category: 'anatomy',
-				question: 'Why are old people different in terms of their presentation of illness? ',
-				answer: 'May mount of an immune response<br />Blunted heart rate rise<br />Comorbid disease (eg. Heart failure, renal failure, dementia)<br />Polypharmacy (eg. Beta blockers)'
+				cardSubject:'lalalala',
+            	question:'Lorem ipsum',
+            	answer:'Answer Lorem ipsum'
 			}
-		]
+		] */
+		proxy: {
+            type: 'jsonp',
+            url: 'http://137.117.146.199:8080/E-Health-Server/flashcards',
+            timeout: 2000,
+            reader: {
+                type: 'json',
+                rootProperty: 'items'
+            }
+        }
 	}
 });
 
@@ -76730,25 +76660,28 @@ Ext.application({
 		    success: function(token) {
 		    	params.token = token;
 		        /*
-		        Ext.Ajax.request({
-		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
-		            method: 'GET',
-		            headers: {
-		                'Accept': 'application/json',
-		                'Content-Type': 'application/json'
-		            },
-		            timeout: 30000,
-		            params: Ext.Object.toQueryString(params),
-		
-		            success: function(response, opts) {
-		                if (!(response && response.responseText === 'true')) {
-		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-		                } 
-		            }, 
-		            failure: function(response, opts) {
-		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-		            }
-		        }); */
+		        //Check for Android complications, only to work with iOS
+		        if(token!=="OK"){
+			        Ext.Ajax.request({
+			            url: 'http://137.117.146.199:8080/E-Health-Server/push',
+			            method: 'GET',
+			            headers: {
+			                'Accept': 'application/json',
+			                'Content-Type': 'application/json'
+			            },
+			            timeout: 30000,
+			            params: Ext.Object.toQueryString(params),
+			
+			            success: function(response, opts) {
+			                if (!(response && response.responseText === 'true')) {
+			                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+			                } 
+			            }, 
+			            failure: function(response, opts) {
+			                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+			            }
+			        });
+		        } */
 		        
 		        Ext.Msg.alert("Token", "Device token:" + token);
 		    },

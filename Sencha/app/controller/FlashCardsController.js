@@ -13,8 +13,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             checkButton: '#answerButton',
             yesButton: '#yesButton',
             noButton: '#noButton',
-            answerPanel: 'flashcardsNavigation cardScreen #cardPanel #answerPanel',
-            buttonPanel: 'flashcardsNavigation cardScreen #cardPanel #buttonPanel'
+            answerPanel: 'flashcardsNavigation cardScreen #answerPanel',
+            buttonPanel: 'flashcardsNavigation cardScreen #buttonPanel'
         },
 
         control: {
@@ -139,11 +139,11 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
             this.showButton(this.getSubmitButton());
-        	this.selectedCategories.push(record);
+        	this.selectedCategories.push(record.data.id);
         } else {
             if(list.getSelectionCount() === 1)
                  this.hideButton(this.getSubmitButton());
-	        Ext.Array.remove(this.selectedCategories, record);
+	        Ext.Array.remove(this.selectedCategories, record.data.id);
         }
     },
 
@@ -167,10 +167,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         if (item.xtype == "flashcardSelectScreen") {
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
-            this.hideButton(this.getDoneButton());
+            this.showButton(this.getDoneButton());
         } else if (item.xtype == "cardScreen") {
-            Ext.getStore('FlashCards').removeAll();
-            Ext.getStore('FlashCards').sync();
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
@@ -178,28 +176,54 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
-        this.loadCardScreen();
-        /*
-        Ext.Msg.confirm("Welcome", "Would like to take a test or just practise?",  function (choice) {
-                if (choice === 'yes' || choice === 'ok') {
-                    this.setTest(true);
-                    this.loadCardScreen();
-                } else {
-                    this.setTest(false);
-                    this.loadCardScreen();
-                }
-        }); */
+
+        var smth = this.checkResponse; 
+        var that = this;
+
+        this.loadNewQuestion();
+
+        var msg = new Ext.MessageBox();
+        msg.show({
+            title: 'Welcome',
+            message: 'Would like to take a test or just practise?',
+            buttons: [{text:'Test',itemId:'sure'},{text:'Practise',itemId:'noway'}],
+            fn:function(response){
+                smth(that, response);
+            }
+        });
+    },
+
+    checkResponse: function(me, response){
+        if(response === 'sure'){
+            me.setTest(true);
+            console.log(me.isTest());
+        } else {
+            me.setTest(false);
+            console.log(me.isTest());
+        }
+
+        me.loadCardScreen();
+    },
+
+    formatSelectedCategories: function(){
+        return this.selectedCategories.join('x');
+    },
+
+    loadNewQuestion: function() {
+        var that = this;
+        var store = Ext.getStore('FlashCards');
+        var cats =  this.formatSelectedCategories();
+        store.getProxy().setExtraParams({'subjects': cats});
+        store.load();
     },
 
     loadCardScreen: function(){
         if (!this.cardScreen) {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
             this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
         }  else {
-            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
-            this.loadNewQuestion();
+            //Ext.getStore('FlashCards').removeAll();
+            //Ext.getStore('FlashCards').sync();
         }
         
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
@@ -212,7 +236,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         if(this.isTest()) this.getSkipButton().setText('Skip');
         else this.getSkipButton().setText('Next');
 
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        this.loadNewQuestion();
+
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
         this.getNavigationContainer().push(this.cardScreen);
     },
@@ -226,6 +252,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onDoneSelect: function() {
+        var that = this;
         if(this.isTest()) {
                this.incrementTotal();
                this.incrementSkipped();
@@ -245,7 +272,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             }
             else results = results + "</p>";
 
-            Ext.Msg.alert("Well Done",  results, this.getNavigationContainer().pop());
+            Ext.Msg.alert("Well Done",  results, function(){
+                that.getNavigationContainer().pop();
+            });
         } else {
             this.getNavigationContainer().pop()
         }
@@ -269,21 +298,13 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         genericButton.hide();
     },
 
-    loadNewQuestion: function() {
-        Ext.getStore('FlashCards').removeAt(0);
-        Ext.getStore('FlashCards').sync();
-        if(Ext.getStore('FlashCards').getCount()===0) {
-            Ext.getStore('FlashCards').load();
-            console.log('load store again');
-        }
-        this.resetForm();
-    },
-
     resetForm: function() {
         this.showButton(this.getSkipButton());
         this.showButton(this.getCheckButton());
-        this.hideButton(this.getAnswerPanel());
-        this.hideButton(this.getButtonPanel());
+        if(typeof(this.getAnswerPanel()) !== 'undefined'){
+            this.hideButton(this.getAnswerPanel());
+            this.hideButton(this.getButtonPanel());
+        }
         this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
     }
 });

@@ -44,15 +44,12 @@ Ext.define('MedBlogs.view.Help', {
 	                '</div>'
 	            ].join(''),
 	            useSelectedHighlights: false,
-	            showCount: true,
-	            //animation: true,
+	            showCount: false,
 	            indent: true,
-	            //animationDuration: 300,
 	            itemId: 'nested',
 	            listeners: {
 	                initialize: function() {
 	                   this.load();
-	                   //this.addCls('PL-view');
 	                }
 	            }
 	        }

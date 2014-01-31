@@ -28,6 +28,10 @@ Ext.define('MedBlogs.view.flashcards.Card', {
                     width: '90%'
                 },
                 items: [
+                     {
+                            id: 'category',
+                            tpl: '<div class="cardSubject">{cardSubject}</div>'
+                    },
                     {
                         xtype: 'fieldset',
                         id: 'questionPanel',
@@ -95,6 +99,7 @@ Ext.define('MedBlogs.view.flashcards.Card', {
 
     updateRecord: function(newRecord) {
         if (newRecord) {
+            this.down('#cardSubject').setData(newRecord.data);
             this.down('#question').setData(newRecord.data);
             this.down('#answer').setData(newRecord.data);
              this.down('#questionPanel').setData(newRecord.data);

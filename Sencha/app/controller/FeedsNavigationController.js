@@ -91,6 +91,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     },
 
     onDoneSelect: function() {
+        Ext.getStore('storeAnnounce').load();
         this.getMain().pop();
     },
 

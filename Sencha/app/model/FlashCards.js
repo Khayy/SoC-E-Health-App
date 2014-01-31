@@ -3,8 +3,7 @@ Ext.define('MedBlogs.model.FlashCards', {
 
     config: {
         fields: [
-            'id',
-            'category',
+            'cardSubject',
             'question',
             'answer'
         ]
