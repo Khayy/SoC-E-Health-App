@@ -30,7 +30,7 @@ Ext.define('MedBlogs.view.flashcards.Card', {
                 items: [
                      {
                             id: 'category',
-                            tpl: '<div class="cardSubject">{cardSubject}</div>'
+                            tpl: '<div id="cardSubject">{cardSubject}</div>'
                     },
                     {
                         xtype: 'fieldset',
@@ -99,11 +99,14 @@ Ext.define('MedBlogs.view.flashcards.Card', {
 
     updateRecord: function(newRecord) {
         if (newRecord) {
-            this.down('#cardSubject').setData(newRecord.data);
-            this.down('#question').setData(newRecord.data);
-            this.down('#answer').setData(newRecord.data);
-             this.down('#questionPanel').setData(newRecord.data);
-            this.down('#answerPanel').setData(newRecord.data);
+            var cs = this.down('#category');
+            cs.setData(newRecord.data);
+            var q = this.down('#question');
+            q.setData(newRecord.data);
+            var a = this.down('#answer');
+            a.setData(newRecord.data);
+            //this.down('#questionPanel').setData(newRecord.data.question);
+            //this.down('#answerPanel').setData(newRecord.data);
         }
     }
 });

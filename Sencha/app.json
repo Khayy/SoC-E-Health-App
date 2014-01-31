@@ -139,7 +139,9 @@
         "feed.js",
         "resources/images",
         "resources/icons",
-        "resources/loading"
+        "resources/loading",
+        "questions.js"
+        
     ],
 
     /**

@@ -12,6 +12,7 @@ Ext.define('MedBlogs.store.FlashCards',{
 		proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/flashcards',
+            //url: 'questions.js',
             timeout: 2000,
             reader: {
                 type: 'json',

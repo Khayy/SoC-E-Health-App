@@ -176,12 +176,10 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
-
         var smth = this.checkResponse; 
         var that = this;
 
-        this.loadNewQuestion();
-
+		this.getSubmitButton().hide();
         var msg = new Ext.MessageBox();
         msg.show({
             title: 'Welcome',
@@ -196,10 +194,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     checkResponse: function(me, response){
         if(response === 'sure'){
             me.setTest(true);
-            console.log(me.isTest());
         } else {
             me.setTest(false);
-            console.log(me.isTest());
         }
 
         me.loadCardScreen();
@@ -214,7 +210,12 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         var store = Ext.getStore('FlashCards');
         var cats =  this.formatSelectedCategories();
         store.getProxy().setExtraParams({'subjects': cats});
-        store.load();
+        store.load({callback : function () {
+	        that.resetForm();
+	        that.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+			// Push the show contact view into the navigation view
+			that.getNavigationContainer().push(that.cardScreen);
+        } });
     },
 
     loadCardScreen: function(){
@@ -240,7 +241,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
 
         //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
-        this.getNavigationContainer().push(this.cardScreen);
+       // this.getNavigationContainer().push(this.cardScreen);
     },
 
     onSkipSelect: function() {
@@ -305,6 +306,6 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             this.hideButton(this.getAnswerPanel());
             this.hideButton(this.getButtonPanel());
         }
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
     }
 });

@@ -75568,7 +75568,7 @@ Ext.define('MedBlogs.view.flashcards.Card', {
                 items: [
                      {
                             id: 'category',
-                            tpl: '<div class="cardSubject">{cardSubject}</div>'
+                            tpl: '<div id="cardSubject">{cardSubject}</div>'
                     },
                     {
                         xtype: 'fieldset',
@@ -75637,11 +75637,14 @@ Ext.define('MedBlogs.view.flashcards.Card', {
 
     updateRecord: function(newRecord) {
         if (newRecord) {
-            this.down('#cardSubject').setData(newRecord.data);
-            this.down('#question').setData(newRecord.data);
-            this.down('#answer').setData(newRecord.data);
-             this.down('#questionPanel').setData(newRecord.data);
-            this.down('#answerPanel').setData(newRecord.data);
+            var cs = this.down('#category');
+            cs.setData(newRecord.data);
+            var q = this.down('#question');
+            q.setData(newRecord.data);
+            var a = this.down('#answer');
+            a.setData(newRecord.data);
+            //this.down('#questionPanel').setData(newRecord.data.question);
+            //this.down('#answerPanel').setData(newRecord.data);
         }
     }
 });
@@ -76337,12 +76340,10 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
-
         var smth = this.checkResponse; 
         var that = this;
 
-        this.loadNewQuestion();
-
+		this.getSubmitButton().hide();
         var msg = new Ext.MessageBox();
         msg.show({
             title: 'Welcome',
@@ -76357,10 +76358,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     checkResponse: function(me, response){
         if(response === 'sure'){
             me.setTest(true);
-            console.log(me.isTest());
         } else {
             me.setTest(false);
-            console.log(me.isTest());
         }
 
         me.loadCardScreen();
@@ -76375,7 +76374,12 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         var store = Ext.getStore('FlashCards');
         var cats =  this.formatSelectedCategories();
         store.getProxy().setExtraParams({'subjects': cats});
-        store.load();
+        store.load({callback : function () {
+	        that.resetForm();
+	        that.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+			// Push the show contact view into the navigation view
+			that.getNavigationContainer().push(that.cardScreen);
+        } });
     },
 
     loadCardScreen: function(){
@@ -76383,8 +76387,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
             this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
         }  else {
-            Ext.getStore('FlashCards').removeAll();
-            Ext.getStore('FlashCards').sync();
+            //Ext.getStore('FlashCards').removeAll();
+            //Ext.getStore('FlashCards').sync();
         }
         
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
@@ -76401,7 +76405,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
 
         //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
-        this.getNavigationContainer().push(this.cardScreen);
+       // this.getNavigationContainer().push(this.cardScreen);
     },
 
     onSkipSelect: function() {
@@ -76466,7 +76470,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             this.hideButton(this.getAnswerPanel());
             this.hideButton(this.getButtonPanel());
         }
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
     }
 });
 
@@ -76484,6 +76488,7 @@ Ext.define('MedBlogs.store.FlashCards',{
 		proxy: {
             type: 'jsonp',
             url: 'http://137.117.146.199:8080/E-Health-Server/flashcards',
+            //url: 'questions.js',
             timeout: 2000,
             reader: {
                 type: 'json',
@@ -76712,5 +76717,5 @@ Ext.application({
 });
 
 // @tag full-page
-// @require D:\GITHUB\SoC-E-Health-App\Sencha\app.js
+// @require /Users/tobyp/Desktop/Project Repositories /SoC-E-Health-App/Sencha/app.js
 
