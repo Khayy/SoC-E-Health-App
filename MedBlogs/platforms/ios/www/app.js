@@ -75117,505 +75117,11 @@ Ext.define('Ext.viewport.Viewport', {
  * you should **not** use {@link Ext#onReady}.
  */
 
-Ext.define('MedBlogs.CustomPullRefresh', {
-    extend:  Ext.Component ,
-    alias: 'plugin.custompullrefresh',
-                                 
-
-    config: {
-
-        onRefresh: null,
-        loadNextPage: null,
-        /**
-         * @cfg {Ext.dataview.List} list
-         * The list to which this PullRefresh plugin is connected.
-         * This will usually by set automatically when configuring the list with this plugin.
-         * @accessor
-         */
-        list: null,
-
-        /**
-         * @cfg {String} pullText The text that will be shown while you are pulling down.
-         * @accessor
-         */
-        pullText: 'Pull down to refresh...',
-
-        /**
-         * @cfg {String} releaseText The text that will be shown after you have pulled down enough to show the release message.
-         * @accessor
-         */
-        releaseText: 'Release to refresh...',
-
-        /**
-         * @cfg {String} loadingText The text that will be shown while the list is refreshing.
-         * @accessor
-         */
-        loadingText: 'Loading...',
-
-        /**
-         * @cfg {String} loadedText The text that will be when data has been loaded.
-         * @accessor
-         */
-        loadedText: 'Loaded.',
-
-        /**
-         * @cfg {String} lastUpdatedText The text to be shown in front of the last updated time.
-         * @accessor
-         */
-        lastUpdatedText: 'Last Updated:&nbsp;',
-
-        /**
-         * @cfg {Boolean} scrollerAutoRefresh Determines whether the attached scroller should automatically track size changes of its container.
-         * Enabling this will have performance impacts but will be necessary if your list size changes dynamically. For example if your list contains images
-         * that will be loading and have unspecified heights.
-         */
-        scrollerAutoRefresh: false,
-
-        /**
-         * @cfg {Boolean} autoSnapBack Determines whether the pulldown should automatically snap back after data has been loaded.
-         * If false call {@link #snapBack}() to manually snap the pulldown back.
-         */
-        autoSnapBack: true,
-
-        /**
-         * @cfg {Number} snappingAnimationDuration The duration for snapping back animation after the data has been refreshed
-         * @accessor
-         */
-        snappingAnimationDuration: 300,
-        /**
-         * @cfg {String} lastUpdatedDateFormat The format to be used on the last updated date.
-         */
-        lastUpdatedDateFormat: 'm/d/Y h:iA',
-
-        /**
-         * @cfg {Number} overpullSnapBackDuration The duration for snapping back when pulldown has been lowered further then its height.
-         */
-        overpullSnapBackDuration: 300,
-
-        /**
-         * @cfg {Ext.XTemplate/String/Array} pullTpl The template being used for the pull to refresh markup.
-         * Will be passed a config object with properties state, message and updated
-         *
-         * @accessor
-         */
-        pullTpl: [
-            '<div class="x-list-pullrefresh-arrow"></div>',
-            '<div class="x-loading-spinner">',
-                '<span class="x-loading-top"></span>',
-                '<span class="x-loading-right"></span>',
-                '<span class="x-loading-bottom"></span>',
-                '<span class="x-loading-left"></span>',
-            '</div>',
-            '<div class="x-list-pullrefresh-wrap">',
-                '<h3 class="x-list-pullrefresh-message">{message}</h3>',
-                '<div class="x-list-pullrefresh-updated">{updated}</div>',
-            '</div>'
-        ].join(''),
-
-        translatable: true
-    },
-
-    // @private
-    $state: "pull",
-    // @private
-    getState: function() {
-        return this.$state
-    },
-    // @private
-    setState: function(value) {
-        this.$state = value;
-        this.updateView();
-    },
-    // @private
-    $isSnappingBack: false,
-    // @private
-    getIsSnappingBack: function() {
-        return this.$isSnappingBack;
-    },
-    // @private
-    setIsSnappingBack: function(value) {
-        this.$isSnappingBack = value;
-    },
-
-    // @private
-    $pageNumber: 1,
-    // @private
-    getPageNumber: function() {
-        return this.$pageNumber
-    },
-    // @private
-    setPageNumber: function(value) {
-        this.$pageNumber = value;
-        //this.updateView();
-    },
-    incrementPageNumber: function() {
-        this.$pageNumber++;
-        //this.updateView();
-    },
-
-    // @private
-    init: function(list) {
-        var me = this;
-
-        me.setList(list);
-        me.initScrollable();
-    },
-
-    getElementConfig: function() {
-        return {
-            reference: 'element',
-            classList: ['x-unsized'],
-            children: [
-                {
-                    reference: 'innerElement',
-                    className: Ext.baseCSSPrefix + 'list-pullrefresh'
-                }
-            ]
-        };
-    },
-
-    // @private
-    initScrollable: function() {
-        var me = this,
-            list = me.getList(),
-            scrollable = list.getScrollable(),
-            scroller;
-
-        if (!scrollable) {
-            return;
-        }
-
-        scroller = scrollable.getScroller();
-        scroller.setAutoRefresh(this.getScrollerAutoRefresh());
-
-        me.lastUpdated = new Date();
-
-        list.insert(0, me);
-
-        scroller.on({
-            scroll: me.onScrollChange,
-            scope: me
-        });
-
-        this.updateView();
-    },
-
-    // @private
-    applyPullTpl: function(config) {
-        if (config instanceof Ext.XTemplate) {
-            return config
-        } else {
-            return new Ext.XTemplate(config);
-        }
-    },
-
-    // @private
-    updateList: function(newList, oldList) {
-        var me = this;
-
-        if (newList && newList != oldList) {
-            newList.on({
-                order: 'after',
-                scrollablechange: me.initScrollable,
-                scope: me
-            });
-        } else if (oldList) {
-            oldList.un({
-                order: 'after',
-                scrollablechange: me.initScrollable,
-                scope: me
-            });
-        }
-    },
-
-    // @private
-    getPullHeight: function() {
-       return this.innerElement.getHeight();
-    },
-
-    /**
-     * @private
-     * Attempts to load the newest posts via the attached List's Store's Proxy
-     */
-    fetchLatest: function() {
-        console.log("fetch latest called");
-        var store = this.getList().getStore(),
-            proxy = store.getProxy(),
-            operation;
-
-        operation = Ext.create('Ext.data.Operation', {
-            page: 1,
-            start: 0,
-            model: store.getModel(),
-            limit: store.getPageSize(),
-            action: 'read',
-            sorters: store.getSorters(),
-            filters: store.getRemoteFilter() ? store.getFilters() : []
-        });
-
-        proxy.read(operation, this.onLatestFetched, this);
-    },
-
-    /**
-     * @private
-     * Called after fetchLatest has finished grabbing data. Matches any returned records against what is already in the
-     * Store. If there is an overlap, updates the existing records with the new data and inserts the new items at the
-     * front of the Store. If there is no overlap, insert the new records anyway and record that there's a break in the
-     * timeline between the new and the old records.
-     */
-    onLatestFetched: function(operation) {
-        console.log("fetch latest finished callback");
-        var store = this.getList().getStore(),
-            oldRecords = store.getData(),
-            newRecords = operation.getRecords(),
-            length = newRecords.length,
-            toInsert = [],
-            newRecord, oldRecord, i;
-
-        for (i = 0; i < length; i++) {
-            newRecord = newRecords[i];
-            oldRecord = oldRecords.getByKey(newRecord.getId());
-
-            if (oldRecord) {
-                oldRecord.set(newRecord.getData());
-            } else {
-                toInsert.push(newRecord);
-            }
-
-            oldRecord = undefined;
-        }
-
-        store.insert(0, toInsert);
-        this.setState("loaded");
-        this.fireEvent('latestfetched', this, toInsert);
-        if (this.getAutoSnapBack()) {
-            this.snapBack();
-        }
-    },
-
-    onRefreshFinished: function() {
-        console.log("refresh finished callback");
-        this.setState("loaded");
-        if (this.getAutoSnapBack()) {
-            this.snapBack();
-        }
-    },
-
-    /**
-     * Snaps the List back to the top after a pullrefresh is complete
-     * @param {Boolean=} force Force the snapback to occur regardless of state {optional}
-     */
-    snapBack: function(force) {
-        if(this.getState() !== "loaded" && force !== true) return;
-
-        var list = this.getList(),
-            scroller = list.getScrollable().getScroller();
-
-        scroller.refresh();
-        scroller.minPosition.y = 0;
-
-        scroller.on({
-            scrollend: this.onSnapBackEnd,
-            single: true,
-            scope: this
-        });
-
-        this.setIsSnappingBack(true);
-        scroller.scrollTo(null, 0, {duration: this.getSnappingAnimationDuration()});
-    },
-
-    /**
-     * @private
-     * Called when PullRefresh has been snapped back to the top
-     */
-    onSnapBackEnd: function() {
-        this.setState("pull");
-        this.setIsSnappingBack(false);
-    },
-
-    /**
-     * @private
-     * Called when the Scroller updates from the list
-     * @param scroller
-     * @param x
-     * @param y
-     */
-    onScrollChange: function(scroller, x, y) {
-        var pullHeight = this.getPullHeight();
-        if (y <= 0) {
-            var isSnappingBack = this.getIsSnappingBack();
-
-            if(this.getState() === "loaded" && !isSnappingBack) {
-                this.snapBack();
-            }
-
-            if (this.getState() !== "loading" && this.getState() !=="loaded") {
-                if (-y >= pullHeight + 10) {
-                    this.setState("release");
-                    scroller.getContainer().onBefore({
-                        dragend: 'onScrollerDragEnd',
-                        single: true,
-                        scope: this
-                    });
-                } else if ((this.getState() === "release") && (-y < pullHeight + 10)) {
-                    this.setState("pull");
-                    scroller.getContainer().unBefore({
-                        dragend: 'onScrollerDragEnd',
-                        single: true,
-                        scope: this
-                    });
-                }
-            }
-            this.getTranslatable().translate(0, -y);
-        } else {
-
-             if (y >= (scroller.maxPosition.y -10) && this.getState() !== "loading") {
-                console.log("should load more");
-                this.setState("release");
-                scroller.getContainer().onBefore({
-                    dragend: 'onScrollerBottomEnd',
-                    single: true,
-                    scope: this
-                });    
-            }
-        }
-    },
-
-    pageLoaded: function(){
-        console.log("page finished callback");
-        this.setState("loaded");
-        if (this.getAutoSnapBack()) {
-            this.snapBack();
-        }
-    },
-
-    /**
-     * @private
-     * Called when the user is done dragging, this listener is only added when the user has pulled far enough for a refresh
-     */
-    onScrollerDragEnd: function() {
-        if (this.getState() !== "loading") {
-            var list = this.getList(),
-                scroller = list.getScrollable().getScroller(),
-                translateable = scroller.getTranslatable();
-
-            this.setState("loading");
-            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
-            scroller.minPosition.y = -this.getPullHeight();
-            scroller.on({
-                scrollend: function(){
-                    console.log("scroll end");
-                    console.log(scroller.maxPosition.y);
-                    if (this.getOnRefresh()) {
-                        console.log("refresh to do");
-                        this.getOnRefresh().call( this.onRefreshFinished(), this);
-                    } else {
-                        console.log("fetch latest to do");
-                        this.getFetchLatest();
-                    }
-                },
-                single: true,
-                scope: this
-            });
-        }
-    },
-
-    onScrollerBottomEnd: function() {
-        if (this.getState() !== "loading") {
-            var list = this.getList(),
-                scroller = list.getScrollable().getScroller(),
-                translateable = scroller.getTranslatable();
-
-            this.setState("loading");
-            translateable.setEasingY({duration: this.getOverpullSnapBackDuration()});
-            //scroller.maxPosition.y = scroller.maxPosition.y + this.getPullHeight();
-            scroller.on({
-                scrollend: function(){
-                    console.log("scroll end load more");
-                    //this.currentScrollToTopOnRefresh = list.getScrollToTopOnRefresh();
-                    //this.getList().setScrollToTopOnRefresh(false);
-                    this.incrementPageNumber()
-                    console.log(this.getPageNumber());
-                    this.getLoadNextPage(this.pageLoaded(), this);
-                },
-                single: true,
-                scope: this
-            });
-        }
-    },
-
-    /**
-     * @private
-     * Updates the content based on the PullRefresh Template
-     */
-    updateView: function() {
-        var state = this.getState(),
-            lastUpdatedText = this.getLastUpdatedText() + Ext.util.Format.date(this.lastUpdated, this.getLastUpdatedDateFormat()),
-            templateConfig = {state: state, updated: lastUpdatedText},
-            stateFn = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase(),
-            fn = "get" + stateFn + "Text";
-
-        if (this[fn] && Ext.isFunction(this[fn])) {
-            templateConfig.message = this[fn].call(this);
-        }
-
-        this.innerElement.removeCls(["loaded", "loading", "release", "pull"], Ext.baseCSSPrefix + "list-pullrefresh");
-        this.innerElement.addCls(this.getState(), Ext.baseCSSPrefix + "list-pullrefresh");
-        this.getPullTpl().overwrite(this.innerElement, templateConfig);
-    }
-}, function() {
-
-    /**
-     * Updates the PullRefreshText.
-     * @method setPullRefreshText
-     * @param {String} text
-     * @deprecated 2.3.0 Please use {@link #setPullText} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setPullRefreshText', 'setPullText');
-
-    /**
-     * Updates the ReleaseRefreshText.
-     * @method setReleaseRefreshText
-     * @param {String} text
-     * @deprecated 2.3.0 Please use {@link #setReleaseText} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setReleaseRefreshText', 'setReleaseText');
-
-    this.override({
-        constructor: function(config) {
-            if (config) {
-                /**
-                 * @cfg {String} pullReleaseText
-                 * Optional Text during the Release State.
-                 * @deprecated 2.3.0 Please use {@link #releaseText} instead
-                 */
-                if (config.hasOwnProperty('pullReleaseText')) {
-                    Ext.Logger.deprecate("'pullReleaseText' config is deprecated, please use 'releaseText' config instead", this);
-                    config.releaseText = config.pullReleaseText;
-                    delete config.pullReleaseText;
-                }
-
-                /**
-                 * @cfg {String} pullRefreshText
-                 * Optional Text during the Pull State.
-                 * @deprecated 2.3.0 Please use {@link #pullText} instead
-                 */
-                if (config.hasOwnProperty('pullRefreshText')) {
-                    Ext.Logger.deprecate("'pullRefreshText' config is deprecated, please use 'pullText' config instead", this);
-                    config.pullText = config.pullRefreshText;
-                    delete config.pullRefreshText;
-                }
-            }
-
-            this.callParent([config]);
-        }
-    });
-});
-
 Ext.define('MedBlogs.model.Announcements',{
 
 	extend:  Ext.data.Model ,
 	config: {
+		idProperty: 'link',
 		fields: 
 		[
 			'uid',
@@ -75688,92 +75194,44 @@ Ext.define('MedBlogs.model.FlashCards', {
 
     config: {
         fields: [
-            'id',
-            'category',
+            'cardSubject',
             'question',
             'answer'
         ]
     }
 });
 
-/*Ext.define('MedBlogs.util.Proxy.Announcements', {
-    singleton: true,
-    requires: [
-        'MedBlogs.model.Announcements',
-        'Ext.data.JsonP'
-    ],
-
-    process: function(url) {
-        var announcementStore = Ext.getStore('Announcements'),
-            announcementIds = [],
-            announcementModel;
-
-        Ext.data.JsonP.request({
-            url: url,
-            //callbackKey: 'feedscb',
-            //callbackName: 'feedscb',    
-            
-            callback: function(successful, data){
-                if(successful === true) {
-                    console.log(data.items.toString());
-                    Ext.Array.each(data.items, function(item) {
-                            // don't add duplicates and make the dates into date format
-                            //if (announcementIds.indexOf(item.get('uid')) == -1) {
-                                //announcementIds.push(item);
-                            //if(announcementStore.getCount() < announcementStore.getPageSize()) {
-                                announcementModel = Ext.create('MedBlogs.model.Announcements', item);
-                                var tempDate = new Date(item.pubDate);
-                                var month = tempDate.getMonth() + 1;
-                                if(month<10) month = '0' + month;
-                                var day = tempDate.getDate();
-                                if(day<10) day = '0' + day;
-                                var toDisplay = day + '/' + month + '/' + tempDate.getFullYear();
-                                announcementModel.set('date', toDisplay);
-                                announcementStore.add(announcementModel);
-                            //}
-                            //}
-                    });
-                    announcementStore.sync();
-                } else {
-                    Ext.Msg.alert('Sorry', 'Something went wrong. Please, try again later.', Ext.emptyFn);
-                }
-            }
-        });
-    }
-});
-*/
-
 Ext.define('MedBlogs.store.Announcements', {
     extend:  Ext.data.Store ,
 
                 
                                       
-                                             
       
 
     config: {
         model: 'MedBlogs.model.Announcements',
-        pageSize: 10,
+        pageSize: 20,
         autoLoad:true,
-        //remoteFilter: true,
         //remoteSort: true,
         sorters:[{
             property:'pubDate',
             direction:'DESC'
-        }]
-        ,
+        }],
         proxy: {
             type: 'jsonp',
-            url: 'http://137.117.146.199:8080/E-Health-Server/feeds/all-years',
+            url: 'http://137.117.146.199:8080/E-Health-Server/announcements',
             startParam:'offset',
             limitParam:'limit',
+            timeout: 2000,
             reader: {
                 type: 'json',
-                rootProperty: 'items'
+                rootProperty: 'announcements'
             },
-            afterRequest: function(request, success){
-                console.log("success ");
-                console.log("success " + success);
+            listeners: {
+                afterRequest: function(request, success){
+                    console.log("success ");
+                    console.log("success " + success);
+                }
             }
         }
     }
@@ -75800,59 +75258,17 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
+				store: 'storeAnnounce',
 				plugins: [
-					
-					{
-                        xclass: 'Ext.plugin.ListPaging',
-                        autoPaging: true
-                    },
                     {
                         xclass: 'Ext.plugin.PullRefresh',
-                        pullText: 'Pull down for more data!'
-                    } 
-                    /*
-                        	var items = Ext.getStore('Settings').getData().items;
-                        	Ext.each(items ,function(record, recordIndex){
-                        		if(record.get('following') === yes) {
-                        			var yearToCall = record.get('name').toLowerCase().replace(" ","");
-                        			MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/' + yearToCall);
-                        		}
-                        	});
-                        	*/
-                        //callback.call(plugin);
-                        	//plugin.setState("loaded");
-                        	//var store = plugin.list.getStore();
-                        	//store.load();
-		                    /*var store = plugin.list.getStore();
-		                            store.load(function(records, operation, success) {
-		                                callback.call(plugin);
-		                                console.log( 'me3' );
-		                            });
-		                    */
-		            /*
-					{
-                        xclass: 'MedBlogs.CustomPullRefresh',           
-                        pullText: 'Pull to refresh announcements!',
-                        onRefresh: function(callback, plugin) {
-                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-		                },
-		                loadNextPage: function(callback, plugin) {
-                        	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
-		                }
-                    } */
-                    /*, 
+                        pullText: 'Pull down for more data!',
+                        autoSnapBack : true
+                    },
                     {
-						xclass:'Ext.plugin.ListPaging', //'MedBlogs.CustomListPaging',
-						autoPaging: true,
-						noMoreRecordsText: 'No More Records',
-						//loadMoreCmpAdded: true,
-						clearOnPageLoad: false,
-						storeFullyLoaded: function() {
-					         var store = this.getList().getStore();
-					         return (store.getSize() < (store.currentPage * store.getPageSize()));
-					    }
-					}  */                     
+                        xclass: 'Ext.plugin.ListPaging',
+                        autoPaging: true
+                    }       
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -75867,12 +75283,7 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 	/*,
 
 	show: function(component, options){
-	    var store = Ext.getStore('Announcements');
-
-	    MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-
-	    store.load();
-	    console.log("show feed screen");
+	    Ext.getStore('storeAnnounce').load();
 	} */
 	
 });
@@ -75921,8 +75332,18 @@ Ext.define('MedBlogs.view.feeds.FeedDetail', {
 
 Ext.define('MedBlogs.store.Subscriptions',{
 	extend:  Ext.data.Store ,
+	                                           
+
 	config: {
 		model: 'MedBlogs.model.Subscriptions'
+	},
+	getYears: function(){
+			var years = [];
+			Ext.Array.each(this.getData().items, function(item, index){
+				if(item.data.following === 'yes')
+					years.push(item.data.name.replace('Year ', ''));
+			});
+			return years.join('x');
 	}
 });
 
@@ -76019,63 +75440,63 @@ Ext.define('MedBlogs.store.CardCategories', {
 		model: 'MedBlogs.model.CardCategories',
 		data: 
 		[
-			{
-				id : '1', 
+			/*{
+				id : '0', 
 				image: 'resources/images/ageing_and_child_development.jpg',
 				category: 'Ageing &amp; childhood<br />development'
-			},
+			},*/
 			{
-				id : '2', 
+				id : '1', 
 				image: 'resources/images/cardiology.jpg',
 				category: 'Cardiovascular<br /> &nbsp;'
 			},
 			{
-				id : '3', 
+				id : '2', 
 				image: 'resources/images/dermatology.jpg',
 				category: 'Dermatology<br /> &nbsp;'
 			},
 			{
-				id : '4', 
+				id : '3', 
 				image: 'resources/images/endocrinology.jpg',
 				category: 'Endocrine<br /> &nbsp;'
 			},
 			{
-				id : '5', 
+				id : '4', 
 				image: 'resources/images/ENT.jpg',
 				category: 'ENT<br /> &nbsp;'
 			},
 			{
-				id : '6', 
+				id : '5', 
 				image: 'resources/images/GI.jpg',
 				category: 'Haematology<br /> &nbsp;'
 			},
 			{
-				id : '7', 
+				id : '6', 
 				image: 'resources/images/musculoskeletal.jpg',
 				category: 'Musculoskeletal<br /> &nbsp;'
 			},
 			{
-				id : '8', 
+				id : '7', 
 				image: 'resources/images/neurology.jpg',
 				category: 'Neurology<br /> &nbsp;'
 			},
 			{
-				id : '9', 
+				id : '8', 
 				image: 'resources/images/opthalmology.jpg',
 				category: 'Opthalmology<br /> &nbsp;'
 			},
 			{
-				id : '10', 
+				id : '9', 
 				image: 'resources/images/psychiatry.jpg',
 				category: 'Psychiatry<br /> &nbsp;'
 			},
 			{
-				id : '11', 
+				id : '10', 
 				image: 'resources/images/renal.jpg',
 				category: 'Renal<br /> &nbsp;'
 			},
 			{
-				id : '12', 
+				id : '11', 
 				image: 'resources/images/resipiratory.jpg',
 				category: 'Resipiratory<br /> &nbsp;'
 			}
@@ -76145,6 +75566,10 @@ Ext.define('MedBlogs.view.flashcards.Card', {
                     width: '90%'
                 },
                 items: [
+                     {
+                            id: 'category',
+                            tpl: '<div id="cardSubject">{cardSubject}</div>'
+                    },
                     {
                         xtype: 'fieldset',
                         id: 'questionPanel',
@@ -76212,10 +75637,14 @@ Ext.define('MedBlogs.view.flashcards.Card', {
 
     updateRecord: function(newRecord) {
         if (newRecord) {
-            this.down('#question').setData(newRecord.data);
-            this.down('#answer').setData(newRecord.data);
-             this.down('#questionPanel').setData(newRecord.data);
-            this.down('#answerPanel').setData(newRecord.data);
+            var cs = this.down('#category');
+            cs.setData(newRecord.data);
+            var q = this.down('#question');
+            q.setData(newRecord.data);
+            var a = this.down('#answer');
+            a.setData(newRecord.data);
+            //this.down('#questionPanel').setData(newRecord.data.question);
+            //this.down('#answerPanel').setData(newRecord.data);
         }
     }
 });
@@ -76467,15 +75896,12 @@ Ext.define('MedBlogs.view.Help', {
 	                '</div>'
 	            ].join(''),
 	            useSelectedHighlights: false,
-	            showCount: true,
-	            //animation: true,
+	            showCount: false,
 	            indent: true,
-	            //animationDuration: 300,
 	            itemId: 'nested',
 	            listeners: {
 	                initialize: function() {
 	                   this.load();
-	                   //this.addCls('PL-view');
 	                }
 	            }
 	        }
@@ -76620,6 +76046,7 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
     },
 
     onDoneSelect: function() {
+        Ext.getStore('storeAnnounce').load();
         this.getMain().pop();
     },
 
@@ -76634,20 +76061,22 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
         	record.set('following', 'yes');
-        	record.set('notifications', 'yes');
-        	record.save();
-	        /*Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
+	        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
 		        if (choice === 'yes' || choice === 'ok') {
 			        record.set('notifications', 'yes');
 		        }
 		        
 		        record.save();
-	        });*/
+	        });
         } else {
 	        record.set('following', 'no');
 	        record.set('notifications', 'no');
 	        record.save();
         }
+
+        var years = list.getStore().getYears();
+        var proxy = Ext.getStore('storeAnnounce').getProxy();
+        proxy.setExtraParams({'years':years});
     },
 
     onFeedTap: function(list, index, node, record) {
@@ -76658,8 +76087,6 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         this.feedDetail.setRecord(record);
         // Push the show contact view into the navigation view
         this.getMain().push(this.feedDetail);
-       
-        //Ext.Msg.alert('Tap', 'Disclose more info for ' + record.get('title'), Ext.emptyFn);
     },
 
     showButton: function(genericButton) {
@@ -76750,8 +76177,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
             checkButton: '#answerButton',
             yesButton: '#yesButton',
             noButton: '#noButton',
-            answerPanel: 'flashcardsNavigation cardScreen #cardPanel #answerPanel',
-            buttonPanel: 'flashcardsNavigation cardScreen #cardPanel #buttonPanel'
+            answerPanel: 'flashcardsNavigation cardScreen #answerPanel',
+            buttonPanel: 'flashcardsNavigation cardScreen #buttonPanel'
         },
 
         control: {
@@ -76775,9 +76202,15 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
                 tap: function(){
                     this.hideButton(this.getCheckButton());
                     this.incrementTotal();
-                    this.hideButton(this.getSkipButton());
                     this.showButton(this.getAnswerPanel());
-                    this.showButton(this.getButtonPanel());
+                    if(this.isTest()) {
+                        this.hideButton(this.getSkipButton());
+                        this.showButton(this.getButtonPanel());
+                    }
+                    else {
+                        this.showButton(this.getSkipButton());
+                        this.hideButton(this.getButtonPanel());
+                    }
                 }
             },
             yesButton:  {
@@ -76804,13 +76237,10 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setTotal: function(value) {
         this.$total = value;
-        //this.updateView();
     },
     incrementTotal: function() {
         this.$total++;
-        //this.updateView();
     },
-
 
     // @private
     $skipped: 0,
@@ -76821,11 +76251,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setSkipped: function(value) {
         this.$skipped = value;
-        //this.updateView();
     },
     incrementSkipped: function() {
         this.$skipped++;
-        //this.updateView();
     },
 
 
@@ -76838,11 +76266,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setCorrect: function(value) {
         this.$correct = value;
-        //this.updateView();
     },
     incrementCorrect: function() {
         this.$correct++;
-        //this.updateView();
     },
 
     // @private
@@ -76854,13 +76280,21 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setIncorrect: function(value) {
         this.$incorrect = value;
-        //this.updateView();
     },
     incrementIncorrect: function() {
         this.$incorrect++;
-        //this.updateView();
     },
 
+    // @private
+    $test: false,
+    // @private
+    isTest: function() {
+        return this.$test;
+    },
+    // @private
+    setTest: function(value) {
+        this.$test = value;
+    },
 
     onCategoryTap: function(list, index, node, record) {
     	if (typeof(this.selectedCategories) === 'undefined') {
@@ -76869,17 +76303,17 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
             this.showButton(this.getSubmitButton());
-        	this.selectedCategories.push(record);
+        	this.selectedCategories.push(record.data.id);
         } else {
             if(list.getSelectionCount() === 1)
                  this.hideButton(this.getSubmitButton());
-	        Ext.Array.remove(this.selectedCategories, record);
+	        Ext.Array.remove(this.selectedCategories, record.data.id);
         }
     },
 
     onMainPush: function(view, item) {
         //deselect categories
-        //this.getFeedList().deselectAll();
+        this.getSelectGrid().deselectAll();
         this.getNavigationContainer().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "flashcardSelectScreen") {
             this.hideButton(this.getSubmitButton());
@@ -76897,10 +76331,8 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         if (item.xtype == "flashcardSelectScreen") {
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
-            this.hideButton(this.getDoneButton());
+            this.showButton(this.getDoneButton());
         } else if (item.xtype == "cardScreen") {
-            Ext.getStore('FlashCards').removeAll();
-            Ext.getStore('FlashCards').sync();
             this.hideButton(this.getSubmitButton());
             this.hideButton(this.getSkipButton());
             this.hideButton(this.getDoneButton());
@@ -76908,41 +76340,109 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
+        var smth = this.checkResponse; 
+        var that = this;
+
+		this.getSubmitButton().hide();
+        var msg = new Ext.MessageBox();
+        msg.show({
+            title: 'Welcome',
+            message: 'Would like to take a test or just practise?',
+            buttons: [{text:'Test',itemId:'sure'},{text:'Practise',itemId:'noway'}],
+            fn:function(response){
+                smth(that, response);
+            }
+        });
+    },
+
+    checkResponse: function(me, response){
+        if(response === 'sure'){
+            me.setTest(true);
+        } else {
+            me.setTest(false);
+        }
+
+        me.loadCardScreen();
+    },
+
+    formatSelectedCategories: function(){
+        return this.selectedCategories.join('x');
+    },
+
+    loadNewQuestion: function() {
+        var that = this;
+        var store = Ext.getStore('FlashCards');
+        var cats =  this.formatSelectedCategories();
+        store.getProxy().setExtraParams({'subjects': cats});
+        store.load({callback : function () {
+	        that.resetForm();
+	        that.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+			// Push the show contact view into the navigation view
+			that.getNavigationContainer().push(that.cardScreen);
+        } });
+    },
+
+    loadCardScreen: function(){
         if (!this.cardScreen) {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
             this.cardScreen = Ext.create('MedBlogs.view.flashcards.Card');
         }  else {
-            Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
-            Ext.getStore('FlashCards').load();
-            this.loadNewQuestion();
+            //Ext.getStore('FlashCards').removeAll();
+            //Ext.getStore('FlashCards').sync();
         }
         
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
             this.showButton(this.getAnswerPanel());
-            this.showButton(this.getButtonPanel());
+            if(this.isTest())
+                this.showButton(this.getButtonPanel());
+            else this.hideButton(this.getButtonPanel());
         }
 
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+        if(this.isTest()) this.getSkipButton().setText('Skip');
+        else this.getSkipButton().setText('Next');
+
+        this.loadNewQuestion();
+
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
         // Push the show contact view into the navigation view
-        this.getNavigationContainer().push(this.cardScreen);
+       // this.getNavigationContainer().push(this.cardScreen);
     },
 
     onSkipSelect: function() {
-       this.incrementTotal();
-       this.incrementSkipped();
+        if(this.isTest() === false) {
+           this.incrementTotal();
+           this.incrementSkipped();
+       }
        this.loadNewQuestion();
     },
 
     onDoneSelect: function() {
-        Ext.Msg.alert("Well Done", "<p>Correct answers: " + 
-            this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
-            "Inorrect answers: " + 
-            this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
-            "Skipped questions: " + 
-            this.getSkipped() + " / " + this.getTotal() + "</p>" 
-            , Ext.emptyFn);
-        this.getNavigationContainer().pop();
+        var that = this;
+        if(this.isTest()) {
+               this.incrementTotal();
+               this.incrementSkipped();
+           
+            var results = "<p>Correct answers: " + 
+                this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
+                "Inorrect answers: " + 
+                this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
+                "Skipped questions: " + 
+                this.getSkipped() + " / " + this.getTotal();
+
+            var notAnswered = this.getTotal() - (this.getSkipped() + this.getCorrect() + this.getIncorrect());
+            if(notAnswered != 0) {
+                results = results + "<br/>" + 
+               "Unanswered questions: " + 
+                notAnswered + " / " + this.getTotal(); "</p>";
+            }
+            else results = results + "</p>";
+
+            Ext.Msg.alert("Well Done",  results, function(){
+                that.getNavigationContainer().pop();
+            });
+        } else {
+            this.getNavigationContainer().pop()
+        }
     },
 
     showButton: function(genericButton) {
@@ -76963,66 +76463,38 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         genericButton.hide();
     },
 
-    loadNewQuestion: function() {
-        Ext.getStore('FlashCards').removeAt(0);
-        Ext.getStore('FlashCards').sync();
-        if(Ext.getStore('FlashCards').getCount()===0) {
-            Ext.getStore('FlashCards').load();
-            console.log('load store again');
-        }
-        this.resetForm();
-    },
-
-    loadMoreQuestions: function() {
-    
-    },
-
     resetForm: function() {
         this.showButton(this.getSkipButton());
         this.showButton(this.getCheckButton());
-        this.hideButton(this.getAnswerPanel());
-        this.hideButton(this.getButtonPanel());
-        this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
-    },
+        if(typeof(this.getAnswerPanel()) !== 'undefined'){
+            this.hideButton(this.getAnswerPanel());
+            this.hideButton(this.getButtonPanel());
+        }
+        //this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
+    }
 });
 
 Ext.define('MedBlogs.store.FlashCards',{
 	extend:  Ext.data.Store ,
 	config: {
 		model: 'MedBlogs.model.FlashCards',
-		data: 
-		[
+		/*data: [
 			{
-				id : '1', 
-				category: 'anatomy',
-				question: 'What is important to remember about a sudden decline in health in the elderly?',
-				answer: 'Always due to disease'
-			},
-			{
-				id : '2', 
-				category: 'anatomy',
-				question: 'What are the key to living to the age of 100?',
-				answer: 'Non-smoker<br />Slim, tall<br />Little diabetes, dementia, heart disease<br />Practical, strong<br />Keep friends'
-			},
-			{
-				id : '3', 
-				category: 'anatomy',
-				question: 'How much walking per week confers with substantial benefits to your health 30% cardiovascular event reduction?',
-				answer: '45-75 min per week'
-			},
-			{
-				id : '4', 
-				category: 'anatomy',
-				question: 'Does a 50% calorie restricted diet make you live longer?',
-				answer: 'Proved correct in rats'
-			},
-			{
-				id : '5', 
-				category: 'anatomy',
-				question: 'Why are old people different in terms of their presentation of illness? ',
-				answer: 'May mount of an immune response<br />Blunted heart rate rise<br />Comorbid disease (eg. Heart failure, renal failure, dementia)<br />Polypharmacy (eg. Beta blockers)'
+				cardSubject:'lalalala',
+            	question:'Lorem ipsum',
+            	answer:'Answer Lorem ipsum'
 			}
-		]
+		] */
+		proxy: {
+            type: 'jsonp',
+            url: 'http://137.117.146.199:8080/E-Health-Server/flashcards',
+            //url: 'questions.js',
+            timeout: 2000,
+            reader: {
+                type: 'json',
+                rootProperty: 'items'
+            }
+        }
 	}
 });
 
@@ -77044,9 +76516,7 @@ Ext.application({
                
                                  
                           
-                                  
-                                    
-                                      
+                                 
       
 
     controllers: [
@@ -77105,17 +76575,12 @@ Ext.application({
     },
 
     launch: function() {
-        //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        //MedBlogs.util.Proxy.CardCategories.process('feed.js');
-
-        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-
+    
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-        this.pushInit();
+        //this.pushInit();
        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
@@ -77141,6 +76606,7 @@ Ext.application({
     
     subscriptionsInit: function (subscriptions) {
    		// load and setup subscriptions from local storage
+   		//var subscriptions = Ext.create('MedBlogs.store.Subscriptions', { id: 'Subscriptions' });
 		var subscriptions = Ext.getStore('Subscriptions');
 		subscriptions.load();
 		
@@ -77177,6 +76643,11 @@ Ext.application({
 			
 			subscriptions.sync();
 	    }
+
+	    var store = Ext.create('MedBlogs.store.Announcements', { id: 'storeAnnounce' });
+	    var yearstr = subscriptions.getYears();
+        store.getProxy().setExtraParams({'years':yearstr});
+        store.load();
     },
     
     pushInit: function() {
@@ -77186,12 +76657,13 @@ Ext.application({
     	} else if (Ext.os.is.Android) {
 	    	params.platform = 'android';
     	}
-    	
+
+    	params.key = 040815162342;
+
 	    Ext.device.Push.register({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		        
 		        Ext.Ajax.request({
 		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
 		            method: 'GET',
@@ -77205,34 +76677,36 @@ Ext.application({
 		            success: function(response, opts) {
 		                if (!(response && response.responseText === 'true')) {
 		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-		                } else {
-			                Ext.Msg.alert("Push stuff setup and should have spoke to server", JSON.stringify(response));
-		                }
+		                } 
 		            }, 
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
 		        });
-		        
-		        Ext.Msg.alert("Token", "Device token:" + token);
+		        //Ext.Msg.alert("Token", "Device token:" + token);
 		    },
 		    failure: function(error) {
-		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications. " + error, Ext.emptyFn);
 		    },
 		    received: function(notification) {
 		    	//var subscriptions = Ext.getStore('Subscriptions');
-				//subscriptions.filter([{property: "following", value: "yes"}]);
-				//sub
-				/*Ext.Array.each(subscriptions, function (item, index) {
-					if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
+				//Ext.Array.each(subscriptions, function (item, index) {
+					//if (((item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) 
+					//     && (item.following === "yes" ))    {*/
 				        Ext.device.Notification.show({
 						    title: 'New announcement',
 						    message: notification.alert.title
 						});
-				/*	}
-				});*/
+					//}
+				//});*/
 				// TODO refresh feeds
-		    }
+				//Ext.getStore('storeAnnounce').load();
+		    },
+		    registered: function(token) {
+		    	
+				Ext.Msg.alert("Token", "Device registered:" + token + " " + token.regid + " " + token.regId);
+		    },
+		    senderID: "630125019740"
 		});
     }
 });

@@ -80,7 +80,7 @@ Ext.application({
 		Ext.getStore('PinnedPosts').load();
 		
         this.subscriptionsInit();
-        this.pushInit();
+        //this.pushInit();
        
         // Destroy the #appLoadingIndicator element
         Ext.fly('appLoadingIndicator').destroy();
@@ -164,31 +164,26 @@ Ext.application({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		        /*
-		        //Check for Android complications, only to work with iOS
-		        if(token!=="OK"){
-			        Ext.Ajax.request({
-			            url: 'http://137.117.146.199:8080/E-Health-Server/push',
-			            method: 'GET',
-			            headers: {
-			                'Accept': 'application/json',
-			                'Content-Type': 'application/json'
-			            },
-			            timeout: 30000,
-			            params: Ext.Object.toQueryString(params),
-			
-			            success: function(response, opts) {
-			                if (!(response && response.responseText === 'true')) {
-			                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-			                } 
-			            }, 
-			            failure: function(response, opts) {
-			                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-			            }
-			        });
-		        } */
-		        
-		        Ext.Msg.alert("Token", "Device token:" + token);
+		        Ext.Ajax.request({
+		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
+		            method: 'GET',
+		            headers: {
+		                'Accept': 'application/json',
+		                'Content-Type': 'application/json'
+		            },
+		            timeout: 30000,
+		            params: Ext.Object.toQueryString(params),
+		
+		            success: function(response, opts) {
+		                if (!(response && response.responseText === 'true')) {
+		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		                } 
+		            }, 
+		            failure: function(response, opts) {
+		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		            }
+		        });
+		        //Ext.Msg.alert("Token", "Device token:" + token);
 		    },
 		    failure: function(error) {
 		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications. " + error, Ext.emptyFn);
