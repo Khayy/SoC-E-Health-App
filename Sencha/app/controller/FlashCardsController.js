@@ -40,7 +40,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
                     this.incrementTotal();
                     this.hideButton(this.getSkipButton());
                     this.showButton(this.getAnswerPanel());
-                    this.showButton(this.getButtonPanel());
+                    if(this.isTest())
+                        this.showButton(this.getButtonPanel());
+                    else this.hideButton(this.getButtonPanel());
                 }
             },
             yesButton:  {
@@ -67,13 +69,10 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setTotal: function(value) {
         this.$total = value;
-        //this.updateView();
     },
     incrementTotal: function() {
         this.$total++;
-        //this.updateView();
     },
-
 
     // @private
     $skipped: 0,
@@ -84,11 +83,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setSkipped: function(value) {
         this.$skipped = value;
-        //this.updateView();
     },
     incrementSkipped: function() {
         this.$skipped++;
-        //this.updateView();
     },
 
 
@@ -101,11 +98,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setCorrect: function(value) {
         this.$correct = value;
-        //this.updateView();
     },
     incrementCorrect: function() {
         this.$correct++;
-        //this.updateView();
     },
 
     // @private
@@ -117,13 +112,21 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     // @private
     setIncorrect: function(value) {
         this.$incorrect = value;
-        //this.updateView();
     },
     incrementIncorrect: function() {
         this.$incorrect++;
-        //this.updateView();
     },
 
+    // @private
+    $test: false,
+    // @private
+    isTest: function() {
+        return this.$test;
+    },
+    // @private
+    setTest: function(value) {
+        this.$test = value;
+    },
 
     onCategoryTap: function(list, index, node, record) {
     	if (typeof(this.selectedCategories) === 'undefined') {
@@ -142,7 +145,7 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
 
     onMainPush: function(view, item) {
         //deselect categories
-        //this.getFeedList().deselectAll();
+        this.getSelectGrid().deselectAll();
         this.getNavigationContainer().getNavigationBar().leftBox.query('button')[0].hide();
         if (item.xtype == "flashcardSelectScreen") {
             this.hideButton(this.getSubmitButton());
@@ -171,6 +174,20 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onSubmitSelect: function() {
+        this.loadCardScreen();
+        /*
+        Ext.Msg.confirm("Welcome", "Would like to take a test or just practise?",  function (choice) {
+                if (choice === 'yes' || choice === 'ok') {
+                    this.setTest(true);
+                    this.loadCardScreen();
+                } else {
+                    this.setTest(false);
+                    this.loadCardScreen();
+                }
+        }); */
+    },
+
+    loadCardScreen: function(){
         if (!this.cardScreen) {
             Ext.create('MedBlogs.store.FlashCards', { id: 'FlashCards' });
             Ext.getStore('FlashCards').load();
@@ -183,7 +200,9 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         
         if(typeof(this.getAnswerPanel()) !== 'undefined'){
             this.showButton(this.getAnswerPanel());
-            this.showButton(this.getButtonPanel());
+            if(this.isTest())
+                this.showButton(this.getButtonPanel());
+            else this.hideButton(this.getButtonPanel());
         }
 
         this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
@@ -198,14 +217,22 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
     },
 
     onDoneSelect: function() {
-        Ext.Msg.alert("Well Done", "<p>Correct answers: " + 
+        var results = "<p>Correct answers: " + 
             this.getCorrect() + " / " + this.getTotal() + "<br/>" + 
             "Inorrect answers: " + 
             this.getIncorrect() + " / " + this.getTotal() + "<br/>" + 
             "Skipped questions: " + 
-            this.getSkipped() + " / " + this.getTotal() + "</p>" 
-            , Ext.emptyFn);
-        this.getNavigationContainer().pop();
+            this.getSkipped() + " / " + this.getTotal();
+
+        var notAnswered = this.getTotal() - (this.getSkipped() + this.getCorrect() + this.getIncorrect());
+        if(notAnswered != 0) {
+            results = results + "<br/>" + 
+           "Unanswered questions: " + 
+            notAnswered + " / " + this.getTotal(); "</p>";
+        }
+        else results = results + "</p>";
+
+        Ext.Msg.alert("Well Done",  results, this.getNavigationContainer().pop());
     },
 
     showButton: function(genericButton) {
@@ -236,15 +263,11 @@ Ext.define('MedBlogs.controller.FlashCardsController', {
         this.resetForm();
     },
 
-    loadMoreQuestions: function() {
-    
-    },
-
     resetForm: function() {
         this.showButton(this.getSkipButton());
         this.showButton(this.getCheckButton());
         this.hideButton(this.getAnswerPanel());
         this.hideButton(this.getButtonPanel());
         this.cardScreen.setRecord(Ext.getStore('FlashCards').getAt(0));
-    },
+    }
 });

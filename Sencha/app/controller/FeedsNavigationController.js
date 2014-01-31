@@ -105,24 +105,22 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         // check and only show on select 
         if(list.isSelected(record) === false) {
         	record.set('following', 'yes');
-        	record.set('notifications', 'yes');
-        	record.save();
-	        /*Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
+	        Ext.Msg.confirm(record.get('name'), "Would you like to receive notifications for " + record.get('name') + "?", function (choice) {
 		        if (choice === 'yes' || choice === 'ok') {
 			        record.set('notifications', 'yes');
 		        }
 		        
 		        record.save();
-	        });*/
+	        });
         } else {
 	        record.set('following', 'no');
 	        record.set('notifications', 'no');
 	        record.save();
         }
 
-        years = list.getStore().getYears();
+        var years = list.getStore().getYears();
         var proxy = Ext.getStore('storeAnnounce').getProxy();
-        proxy.setExtraParams({'years':yearstr});
+        proxy.setExtraParams({'years':years});
     },
 
     onFeedTap: function(list, index, node, record) {
@@ -133,8 +131,6 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
         this.feedDetail.setRecord(record);
         // Push the show contact view into the navigation view
         this.getMain().push(this.feedDetail);
-       
-        //Ext.Msg.alert('Tap', 'Disclose more info for ' + record.get('title'), Ext.emptyFn);
     },
 
     showButton: function(genericButton) {

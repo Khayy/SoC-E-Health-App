@@ -19,11 +19,12 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-				store: Ext.getStore('storeAnnounce'),
+				store: 'storeAnnounce',
 				plugins: [
                     {
                         xclass: 'Ext.plugin.PullRefresh',
-                        pullText: 'Pull down for more data!'
+                        pullText: 'Pull down for more data!',
+                        autoSnapBack : true
                     },
                     {
                         xclass: 'Ext.plugin.ListPaging',
@@ -58,19 +59,7 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 		                loadNextPage: function(callback, plugin) {
                         	MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years' + '?page=' + plugin.getPageNumber());
 		                }
-                    } */
-                    /*, 
-                    {
-						xclass:'Ext.plugin.ListPaging', //'MedBlogs.CustomListPaging',
-						autoPaging: true,
-						noMoreRecordsText: 'No More Records',
-						//loadMoreCmpAdded: true,
-						clearOnPageLoad: false,
-						storeFullyLoaded: function() {
-					         var store = this.getList().getStore();
-					         return (store.getSize() < (store.currentPage * store.getPageSize()));
-					    }
-					}  */                     
+                    } */                
 				],
 				emptyText: '<div style="text_align:center">No announcements yet</div>',
 				itemTpl: ['<div class="feed_list">',
@@ -85,12 +74,7 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 	/*,
 
 	show: function(component, options){
-	    var store = Ext.getStore('Announcements');
-
-	    MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-
-	    store.load();
-	    console.log("show feed screen");
+	    Ext.getStore('storeAnnounce').load();
 	} */
 	
 });

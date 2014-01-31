@@ -16,9 +16,7 @@ Ext.application({
     requires: [
         'Ext.ux.touch.SwipeTabs',
         'Ext.device.Push',
-        'Ext.device.Notification',
-        'MedBlogs.CustomPullRefresh'
-        //,'MedBlogs.CustomListPaging'
+        'Ext.device.Notification'
     ],
 
     controllers: [
@@ -159,12 +157,14 @@ Ext.application({
     	} else if (Ext.os.is.Android) {
 	    	params.platform = 'android';
     	}
-    	
+
+    	params.key = 040815162342;
+
 	    Ext.device.Push.register({
 		    type: Ext.device.Push.ALERT,
 		    success: function(token) {
 		    	params.token = token;
-		        
+		        /*
 		        Ext.Ajax.request({
 		            url: 'http://137.117.146.199:8080/E-Health-Server/push',
 		            method: 'GET',
@@ -178,26 +178,23 @@ Ext.application({
 		            success: function(response, opts) {
 		                if (!(response && response.responseText === 'true')) {
 		                    Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
-		                } else {
-			                Ext.Msg.alert("Push stuff setup and should have spoke to server", JSON.stringify(response));
-		                }
+		                } 
 		            }, 
 		            failure: function(response, opts) {
 		                Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
 		            }
-		        });
+		        }); */
 		        
 		        Ext.Msg.alert("Token", "Device token:" + token);
 		    },
 		    failure: function(error) {
-		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications.", Ext.emptyFn);
+		    	Ext.Msg.alert("Push notifications", "Failed to register device for push notifications. " + error, Ext.emptyFn);
 		    },
 		    received: function(notification) {
 		    	//var subscriptions = Ext.getStore('Subscriptions');
-				//subscriptions.filter([{property: "following", value: "yes"}]);
-				//sub
 				//Ext.Array.each(subscriptions, function (item, index) {
-					//if (item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) {*/
+					//if (((item.name.toLowerCase().replace(' ', '') === notification.year.toLowerCase().replace(' ', '')) 
+					//     && (item.following === "yes" ))    {*/
 				        Ext.device.Notification.show({
 						    title: 'New announcement',
 						    message: notification.alert.title
@@ -205,7 +202,13 @@ Ext.application({
 					//}
 				//});*/
 				// TODO refresh feeds
-		    }
+				//Ext.getStore('storeAnnounce').load();
+		    },
+		    registered: function(token) {
+		    	
+				Ext.Msg.alert("Token", "Device registered:" + token + " " + token.regid + " " + token.regId);
+		    },
+		    senderID: "630125019740"
 		});
     }
 });

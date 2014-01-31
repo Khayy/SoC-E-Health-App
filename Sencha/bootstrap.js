@@ -16,8 +16,7 @@ Ext.Loader.addClassPathMappings({
   "Ext.device.sqlite.SQLResultSet": "touch/src/device/sqlite/Sencha.js",
   "Ext.device.sqlite.SQLResultSetRowList": "touch/src/device/sqlite/Sencha.js",
   "Ext.device.sqlite.SQLTransaction": "touch/src/device/sqlite/Sencha.js",
-  "MedBlogs": "app",
-  "MyApp": "app"
+  "MedBlogs": "app"
 });
 Ext.ClassManager.addNameAlternateMappings({
   "Ext.AbstractComponent": [],
@@ -666,7 +665,6 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.model.PinnedPosts": [],
   "MedBlogs.model.Subscriptions": [],
   "MedBlogs.store.Announcements": [],
-  "MedBlogs.store.AnnouncementsStore": [],
   "MedBlogs.store.CardCategories": [],
   "MedBlogs.store.FlashCards": [],
   "MedBlogs.store.HelpStore": [],
@@ -683,8 +681,7 @@ Ext.ClassManager.addNameAlternateMappings({
   "MedBlogs.view.flashcards.Card": [],
   "MedBlogs.view.flashcards.SelectScreen": [],
   "MedBlogs.view.pinned.PinnedPosts": [],
-  "MedBlogs.view.pinned.PostDetail": [],
-  "MyApp.proxy.AnnouncementProxy": []
+  "MedBlogs.view.pinned.PostDetail": []
 });
 Ext.ClassManager.addNameAliasMappings({
   "Ext.AbstractComponent": [],
@@ -1436,7 +1433,6 @@ Ext.ClassManager.addNameAliasMappings({
   "MedBlogs.model.PinnedPosts": [],
   "MedBlogs.model.Subscriptions": [],
   "MedBlogs.store.Announcements": [],
-  "MedBlogs.store.AnnouncementsStore": [],
   "MedBlogs.store.CardCategories": [],
   "MedBlogs.store.FlashCards": [],
   "MedBlogs.store.HelpStore": [],
@@ -1477,8 +1473,5 @@ Ext.ClassManager.addNameAliasMappings({
   ],
   "MedBlogs.view.pinned.PostDetail": [
     "widget.postDetail"
-  ],
-  "MyApp.proxy.AnnouncementProxy": [
-    "proxy.announcementproxy"
   ]
 });

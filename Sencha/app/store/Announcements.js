@@ -50,14 +50,12 @@ Ext.define('MedBlogs.store.Announcements', {
 
     requires: [ 
         'MedBlogs.model.Announcements'
-        //,'MedBlogs.proxy.AnnouncementProxy'
     ],
 
     config: {
         model: 'MedBlogs.model.Announcements',
-        pageSize: 10,
+        pageSize: 20,
         autoLoad:true,
-        //remoteFilter: true,
         //remoteSort: true,
         sorters:[{
             property:'pubDate',
@@ -66,17 +64,13 @@ Ext.define('MedBlogs.store.Announcements', {
         ,
         proxy: {
             type: 'jsonp',
-            url: 'http://137.117.146.199:8080/E-Health-Server/feeds',
+            url: 'http://137.117.146.199:8080/E-Health-Server/announcements',
             startParam:'offset',
             limitParam:'limit',
             reader: {
                 type: 'json',
-                rootProperty: 'items'
+                rootProperty: 'announcements'
             },
-            /*
-            extraParams: {
-                years : [1,2,3,4,5]
-            },*/
             listeners: {
                 afterRequest: function(request, success){
                     console.log("success ");
