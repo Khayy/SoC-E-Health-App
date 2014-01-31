@@ -73,20 +73,16 @@ Ext.define('MedBlogs.store.Announcements', {
                 type: 'json',
                 rootProperty: 'items'
             },
+            /*
             extraParams: {
-                years : this.getStore().getYearsToPass()
-            },
-            afterRequest: function(request, success){
-                console.log("success ");
-                console.log("success " + success);
+                years : [1,2,3,4,5]
+            },*/
+            listeners: {
+                afterRequest: function(request, success){
+                    console.log("success ");
+                    console.log("success " + success);
+                }
             }
-        },
-        getYearsToPass : null
-    },
-
-     getYearsToPass: function(){
-        var store = Ext.getStore('Subscriptions');
-        store.load();
-        return store.getYears();
+        }
     }
 });

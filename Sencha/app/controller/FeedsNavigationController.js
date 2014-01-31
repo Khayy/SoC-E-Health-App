@@ -119,6 +119,10 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 	        record.set('notifications', 'no');
 	        record.save();
         }
+
+        years = list.getStore().getYears();
+        var proxy = Ext.getStore('storeAnnounce').getProxy();
+        proxy.setExtraParams({'years':yearstr});
     },
 
     onFeedTap: function(list, index, node, record) {

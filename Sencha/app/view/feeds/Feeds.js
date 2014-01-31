@@ -19,17 +19,16 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
+				store: Ext.getStore('storeAnnounce'),
 				plugins: [
-					
-					{
-                        xclass: 'Ext.plugin.ListPaging',
-                        autoPaging: true
-                    },
                     {
                         xclass: 'Ext.plugin.PullRefresh',
                         pullText: 'Pull down for more data!'
-                    } 
+                    },
+                    {
+                        xclass: 'Ext.plugin.ListPaging',
+                        autoPaging: true
+                    }
                     /*
                         	var items = Ext.getStore('Settings').getData().items;
                         	Ext.each(items ,function(record, recordIndex){

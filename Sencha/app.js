@@ -77,12 +77,7 @@ Ext.application({
     },
 
     launch: function() {
-        //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        //MedBlogs.util.Proxy.CardCategories.process('feed.js');
-
-        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-
+    
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
 		
@@ -113,6 +108,7 @@ Ext.application({
     
     subscriptionsInit: function (subscriptions) {
    		// load and setup subscriptions from local storage
+   		//var subscriptions = Ext.create('MedBlogs.store.Subscriptions', { id: 'Subscriptions' });
 		var subscriptions = Ext.getStore('Subscriptions');
 		subscriptions.load();
 		
@@ -149,6 +145,11 @@ Ext.application({
 			
 			subscriptions.sync();
 	    }
+
+	    var store = Ext.create('MedBlogs.store.Announcements', { id: 'storeAnnounce' });
+	    var yearstr = subscriptions.getYears();
+        store.getProxy().setExtraParams({'years':yearstr});
+        store.load();
     },
     
     pushInit: function() {

@@ -75771,21 +75771,17 @@ Ext.define('MedBlogs.store.Announcements', {
                 type: 'json',
                 rootProperty: 'items'
             },
+            /*
             extraParams: {
-                years : this.getStore().getYearsToPass()
-            },
-            afterRequest: function(request, success){
-                console.log("success ");
-                console.log("success " + success);
+                years : [1,2,3,4,5]
+            },*/
+            listeners: {
+                afterRequest: function(request, success){
+                    console.log("success ");
+                    console.log("success " + success);
+                }
             }
-        },
-        getYearsToPass : null
-    },
-
-     getYearsToPass: function(){
-        var store = Ext.getStore('Subscriptions');
-        store.load();
-        return store.getYears();
+        }
     }
 });
 
@@ -75810,17 +75806,16 @@ Ext.define('MedBlogs.view.feeds.Feeds', {
 				xtype: 'list',
 				variableHeights: true,
 				disclosure: false,
-				store: Ext.create('MedBlogs.store.Announcements'),//'Announcements',
+				store: Ext.getStore('storeAnnounce'),
 				plugins: [
-					
-					{
-                        xclass: 'Ext.plugin.ListPaging',
-                        autoPaging: true
-                    },
                     {
                         xclass: 'Ext.plugin.PullRefresh',
                         pullText: 'Pull down for more data!'
-                    } 
+                    },
+                    {
+                        xclass: 'Ext.plugin.ListPaging',
+                        autoPaging: true
+                    }
                     /*
                         	var items = Ext.getStore('Settings').getData().items;
                         	Ext.each(items ,function(record, recordIndex){
@@ -75931,16 +75926,18 @@ Ext.define('MedBlogs.view.feeds.FeedDetail', {
 
 Ext.define('MedBlogs.store.Subscriptions',{
 	extend:  Ext.data.Store ,
+	                                           
+
 	config: {
-		model: 'MedBlogs.model.Subscriptions',
-		getYears: function(){
+		model: 'MedBlogs.model.Subscriptions'
+	},
+	getYears: function(){
 			var years = [];
 			Ext.Array.each(this.getData().items, function(item, index){
-				if(item.following === 'yes')
-					years.push(item.name.replace('Year ', ''));
+				if(item.data.following === 'yes')
+					years.push(item.data.name.replace('Year ', ''));
 			});
-			return years;
-		}
+			return years.join('x');
 	}
 });
 
@@ -76666,6 +76663,10 @@ Ext.define('MedBlogs.controller.FeedsNavigationController', {
 	        record.set('notifications', 'no');
 	        record.save();
         }
+
+        years = list.getStore().getYears();
+        var proxy = Ext.getStore('storeAnnounce').getProxy();
+        proxy.setExtraParams({'years':yearstr});
     },
 
     onFeedTap: function(list, index, node, record) {
@@ -77123,12 +77124,7 @@ Ext.application({
     },
 
     launch: function() {
-        //Ext.create('MedBlogs.store.CardCategories', { id: 'CardCategories' });
-        //MedBlogs.util.Proxy.CardCategories.process('feed.js');
-
-        //Ext.create('MedBlogs.store.Announcements', { id: 'Announcements' });
-        //MedBlogs.util.Proxy.Announcements.process('http://137.117.146.199:8080/E-Health-Server/feeds/all-years');
-
+    
 		// load pinned posts from local storeage
 		Ext.getStore('PinnedPosts').load();
 		
@@ -77159,6 +77155,7 @@ Ext.application({
     
     subscriptionsInit: function (subscriptions) {
    		// load and setup subscriptions from local storage
+   		//var subscriptions = Ext.create('MedBlogs.store.Subscriptions', { id: 'Subscriptions' });
 		var subscriptions = Ext.getStore('Subscriptions');
 		subscriptions.load();
 		
@@ -77195,6 +77192,11 @@ Ext.application({
 			
 			subscriptions.sync();
 	    }
+
+	    var store = Ext.create('MedBlogs.store.Announcements', { id: 'storeAnnounce' });
+	    var yearstr = subscriptions.getYears();
+        store.getProxy().setExtraParams({'years':yearstr});
+        store.load();
     },
     
     pushInit: function() {
